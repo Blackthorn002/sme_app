@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../l10n/app_localizations.dart';
+import '../../general_features/models/gashi_models.dart';
+import '../../general_features/repository/gashi_repository.dart';
 
 class RestaurantSalesPage extends StatefulWidget {
   const RestaurantSalesPage({super.key});
@@ -14,117 +17,121 @@ class _RestaurantSalesPageState extends State<RestaurantSalesPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
-  final List<Map<String, dynamic>> _allOrders = [
-    {
-      'id': '#ORD-2049',
-      'time': '12:45 PM',
-      'title': 'Miiska 3',
-      'type': 'Miis',
-      'typeLabel': 'Dine-in',
-      'payment': 'Zaad',
-      'paymentColor': Color(0xFF00A859),
-      'items': '2x Bariis iyo Hilib, 1x Sharaab Avocado',
-      'customer': 'Axmed Cali',
-      'price': 17.50,
-      'status': 'Dhammaystiran',
-      'statusBg': Color(0xFFE6F7F0),
-      'statusText': Color(0xFF10B981),
-      'icon': Icons.table_restaurant,
-    },
-    {
-      'id': '#ORD-2048',
-      'time': '12:20 PM',
-      'title': 'Safaari',
-      'type': 'Safaari',
-      'typeLabel': 'Takeaway',
-      'payment': 'e-Dahab',
-      'paymentColor': Color(0xFFF58220),
-      'items': '1x Baasto, 2x Sambusa',
-      'customer': 'Nimco Jaamac',
-      'price': 8.00,
-      'status': 'La dhiibay',
-      'statusBg': Color(0xFFE6F7F0),
-      'statusText': Color(0xFF10B981),
-      'icon': Icons.shopping_bag_outlined,
-    },
-    {
-      'id': '#ORD-2047',
-      'time': '11:50 AM',
-      'title': 'Delivery',
-      'type': 'Delivery',
-      'typeLabel': 'Geyn',
-      'payment': 'Zaad',
-      'paymentColor': Color(0xFF00A859),
-      'items': '3x Bariis Chicken, 3x Sharaab',
-      'customer': 'Cabdiweli Xuseen',
-      'price': 25.50,
-      'status': 'Dhammaystiran',
-      'statusBg': Color(0xFFE6F7F0),
-      'statusText': Color(0xFF10B981),
-      'icon': Icons.two_wheeler,
-    },
-    {
-      'id': '#ORD-2046',
-      'time': '11:15 AM',
-      'title': 'Miiska 1',
-      'type': 'Miis',
-      'typeLabel': 'Dine-in',
-      'payment': 'Kaash',
-      'paymentColor': Color(0xFF2563EB),
-      'items': '1x Suqaar, 1x Shaah Somali',
-      'customer': 'Maxamed Cumar',
-      'price': 9.50,
-      'status': 'Dhammaystiran',
-      'statusBg': Color(0xFFE6F7F0),
-      'statusText': Color(0xFF10B981),
-      'icon': Icons.table_restaurant,
-    },
-    {
-      'id': '#ORD-2045',
-      'time': '10:30 AM',
-      'title': 'Safaari',
-      'type': 'Safaari',
-      'typeLabel': 'Takeaway',
-      'payment': 'Zaad',
-      'paymentColor': Color(0xFF00A859),
-      'items': '4x Sambusa, 2x Sharaab',
-      'customer': 'Xaawo Maxamuud',
-      'price': 7.00,
-      'status': 'La dhiibay',
-      'statusBg': Color(0xFFE6F7F0),
-      'statusText': Color(0xFF10B981),
-      'icon': Icons.shopping_bag_outlined,
-    },
-    {
-      'id': '#ORD-2044',
-      'time': '09:40 AM',
-      'title': 'Miiska 5',
-      'type': 'Miis',
-      'typeLabel': 'Dine-in',
-      'payment': 'Zaad',
-      'paymentColor': Color(0xFF00A859),
-      'items': '2x Canjeero iyo Beer, 2x Shaah',
-      'customer': 'Saleebaan Yuusuf',
-      'price': 12.00,
-      'status': 'Dhammaystiran',
-      'statusBg': Color(0xFFE6F7F0),
-      'statusText': Color(0xFF10B981),
-      'icon': Icons.table_restaurant,
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    GashiRepository.instance.addListener(_onRepoChanged);
+  }
+
+  void _onRepoChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
+    GashiRepository.instance.removeListener(_onRepoChanged);
     _searchController.dispose();
     super.dispose();
   }
 
+  List<Map<String, dynamic>> _getOrderList() {
+    final sales = GashiRepository.instance.getSales(3);
+    return sales.map((sale) {
+      final orderIdStr = sale.id.toString();
+      final shortId = orderIdStr.length > 4
+          ? orderIdStr.substring(orderIdStr.length - 4)
+          : orderIdStr;
+      final type =
+          sale.orderType.isNotEmpty && sale.orderType != 'standard'
+              ? sale.orderType
+              : 'Miis';
+      final isDineIn = type == 'Miis';
+      final isDelivery = type == 'Delivery';
+
+      String typeLabel = 'Takeaway';
+      IconData icon = Icons.shopping_bag_outlined;
+      if (isDineIn) {
+        typeLabel = 'Dine-in';
+        icon = Icons.table_restaurant;
+      } else if (isDelivery) {
+        typeLabel = 'Geyn';
+        icon = Icons.two_wheeler;
+      }
+
+      String title = sale.customAttributes['title'] ??
+          (isDineIn
+              ? (sale.customAttributes['table'] != null
+                  ? 'Miiska ${sale.customAttributes['table']}'
+                  : 'Miis')
+              : (isDelivery ? 'Delivery' : 'Safaari'));
+
+      Color paymentColor = const Color(0xFF00A859); // Zaad
+      final pmLower = sale.paymentMethod.toLowerCase();
+      if (pmLower.contains('dahab')) {
+        paymentColor = const Color(0xFFF58220);
+      } else if (pmLower.contains('kaash') || pmLower.contains('cash')) {
+        paymentColor = const Color(0xFF2563EB);
+      } else if (sale.paymentStatus != 'paid') {
+        paymentColor = const Color(0xFFDC2626);
+      }
+
+      final itemsSummary = sale.items.isNotEmpty
+          ? sale.items.map((i) => '${i.quantity}x ${i.productName}').join(', ')
+          : 'Dalab Cunto';
+
+      final isPaid = sale.paymentStatus == 'paid';
+      return {
+        'id': '#ORD-$shortId',
+        'time': DateFormat('hh:mm a').format(sale.createdAt),
+        'title': title,
+        'type': type,
+        'typeLabel': typeLabel,
+        'payment': sale.paymentMethod,
+        'paymentColor': paymentColor,
+        'items': itemsSummary,
+        'customer': sale.customerName,
+        'location': sale.deliveryLocation ?? sale.customAttributes['delivery_location'],
+        'price': sale.totalAmount,
+        'status': isPaid
+            ? 'Dhammaystiran'
+            : (sale.paymentStatus == 'credit' ? 'Dayn' : 'Qayb la bixiyay'),
+        'statusBg': isPaid ? const Color(0xFFE6F7F0) : const Color(0xFFFFF5F5),
+        'statusText': isPaid ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+        'icon': icon,
+        'sale': sale,
+      };
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final filteredOrders = _allOrders.where((order) {
+    final allOrders = _getOrderList();
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final weekAgo = todayStart.subtract(const Duration(days: 7));
+
+    final filteredOrders = allOrders.where((order) {
+      final sale = order['sale'] as Sale;
+      final createdAt = sale.createdAt;
+
+      // Period filter
+      bool matchesPeriod = true;
+      if (_selectedPeriod == 'Maanta') {
+        matchesPeriod = createdAt.year == now.year &&
+            createdAt.month == now.month &&
+            createdAt.day == now.day;
+      } else if (_selectedPeriod == 'Toddobaadkan') {
+        matchesPeriod = createdAt.isAfter(weekAgo);
+      } else if (_selectedPeriod == 'Bishan') {
+        matchesPeriod = createdAt.year == now.year && createdAt.month == now.month;
+      }
+
+      if (!matchesPeriod) return false;
+
       final matchesSearch = order['id'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
           order['customer'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          order['items'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
+          order['items'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
+          (order['location'] != null && order['location'].toString().toLowerCase().contains(_searchQuery.toLowerCase()));
       final matchesType = _selectedType == 'Dhammaan' || order['type'] == _selectedType;
       return matchesSearch && matchesType;
     }).toList();
@@ -195,7 +202,7 @@ class _RestaurantSalesPageState extends State<RestaurantSalesPage> {
             const SizedBox(height: 16),
 
             // Payment Methods summary bar
-            _buildPaymentMethodsBreakdown(),
+            _buildPaymentMethodsBreakdown(filteredOrders),
             const SizedBox(height: 16),
 
             // Search Bar
@@ -564,7 +571,35 @@ class _RestaurantSalesPageState extends State<RestaurantSalesPage> {
     );
   }
 
-  Widget _buildPaymentMethodsBreakdown() {
+  Widget _buildPaymentMethodsBreakdown(List<Map<String, dynamic>> orders) {
+    double zaad = 0;
+    double edahab = 0;
+    double cash = 0;
+    double debt = 0;
+    double total = 0;
+
+    for (final o in orders) {
+      final p = (o['price'] as double? ?? 0.0);
+      total += p;
+      final pm = (o['payment'] as String? ?? '').toLowerCase();
+      final status = (o['status'] as String? ?? '');
+      if (status == 'Dayn') {
+        debt += p;
+      } else if (pm.contains('dahab')) {
+        edahab += p;
+      } else if (pm.contains('kaash') || pm.contains('cash')) {
+        cash += p;
+      } else {
+        zaad += p;
+      }
+    }
+
+    final validTotal = total > 0 ? total : 1.0;
+    final zaadPct = (zaad / validTotal * 100).round();
+    final edahabPct = (edahab / validTotal * 100).round();
+    final cashPct = (cash / validTotal * 100).round();
+    final debtPct = (debt / validTotal * 100).round();
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -589,21 +624,30 @@ class _RestaurantSalesPageState extends State<RestaurantSalesPage> {
             child: SizedBox(
               height: 10,
               child: Row(
-                children: const [
-                  Expanded(flex: 55, child: ColoredBox(color: Color(0xFF00A859))), // Zaad
-                  Expanded(flex: 25, child: ColoredBox(color: Color(0xFFF58220))), // e-Dahab
-                  Expanded(flex: 20, child: ColoredBox(color: Color(0xFF2563EB))), // Kaash
+                children: [
+                  if (zaad > 0)
+                    Expanded(flex: zaadPct.clamp(1, 100), child: const ColoredBox(color: Color(0xFF00A859))), // Zaad
+                  if (edahab > 0)
+                    Expanded(flex: edahabPct.clamp(1, 100), child: const ColoredBox(color: Color(0xFFF58220))), // e-Dahab
+                  if (cash > 0)
+                    Expanded(flex: cashPct.clamp(1, 100), child: const ColoredBox(color: Color(0xFF2563EB))), // Kaash
+                  if (debt > 0)
+                    Expanded(flex: debtPct.clamp(1, 100), child: const ColoredBox(color: Color(0xFFEF4444))), // Dayn
+                  if (total <= 0)
+                    const Expanded(child: ColoredBox(color: Color(0xFFE5E7EB))),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            spacing: 12,
+            runSpacing: 6,
             children: [
-              _buildLegend(const Color(0xFF00A859), 'Zaad (55%)'),
-              _buildLegend(const Color(0xFFF58220), 'e-Dahab (25%)'),
-              _buildLegend(const Color(0xFF2563EB), 'Kaash (20%)'),
+              _buildLegend(const Color(0xFF00A859), 'Zaad ($zaadPct%)'),
+              _buildLegend(const Color(0xFFF58220), 'e-Dahab ($edahabPct%)'),
+              _buildLegend(const Color(0xFF2563EB), 'Kaash ($cashPct%)'),
+              if (debt > 0) _buildLegend(const Color(0xFFEF4444), 'Dayn ($debtPct%)'),
             ],
           ),
         ],
@@ -657,6 +701,8 @@ class _RestaurantSalesPageState extends State<RestaurantSalesPage> {
             const Divider(),
             const SizedBox(height: 8),
             _receiptRow('Macmiilka:', order['customer']),
+            if (order['location'] != null && order['location'].toString().isNotEmpty)
+              _receiptRow('Goobta Geynta:', order['location'].toString()),
             _receiptRow('Waqtiga:', order['time']),
             _receiptRow('Nooca Dalabka:', '${order['title']} (${order['typeLabel']})'),
             _receiptRow('Habka Lacagta:', order['payment']),

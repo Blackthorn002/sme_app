@@ -30,7 +30,6 @@ class _PharmacyPosPageState extends State<PharmacyPosPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   late String _selectedCategory;
-  late String _selectedOrderType;
   late String _selectedPaymentMethod;
   late List<PharmacyCartItem> _cart;
 
@@ -40,9 +39,6 @@ class _PharmacyPosPageState extends State<PharmacyPosPage> {
     _selectedCategory = widget.categoryIconItems.isNotEmpty 
         ? widget.categoryIconItems.first.title 
         : widget.labels.allCategory;
-    _selectedOrderType = widget.orderTypes.isNotEmpty 
-        ? widget.orderTypes.first.id 
-        : 'Toos';
     _selectedPaymentMethod = widget.paymentMethods.isNotEmpty 
         ? widget.paymentMethods.first.id 
         : 'Zaad';
@@ -673,11 +669,6 @@ class _PharmacyPosPageState extends State<PharmacyPosPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(widget.labels.orderTypeLabel, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF6B7280))),
-                          const SizedBox(height: 8),
-                          _buildOrderTypeSelector(setSheetState),
-                          const SizedBox(height: 14),
-                          
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -839,23 +830,37 @@ class _PharmacyPosPageState extends State<PharmacyPosPage> {
                                     builder: (context) {
                                       final paid = double.tryParse(paidNowCtrl.text) ?? 0.0;
                                       final remainingDebt = (_cartTotal - paid).clamp(0.0, _cartTotal);
-                                      return Container(
-                                        padding: const EdgeInsets.all(10),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(10),
-                                          border: Border.all(color: const Color(0xFFFCA5A5)),
-                                        ),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            const Text('Deynta Ku Hadhi Doonta:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF991B1B))),
-                                            Text(
-                                              '\$${remainingDebt.toStringAsFixed(2)}',
-                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFDC2626)),
+                                      return Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(10),
+                                              border: Border.all(color: const Color(0xFFFCA5A5)),
                                             ),
+                                            child: Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                const Text('Deynta Ku Hadhi Doonta:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF991B1B))),
+                                                Text(
+                                                  '\$${remainingDebt.toStringAsFixed(2)}',
+                                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFFDC2626)),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          if (paid > 0) ...[
+                                            const SizedBox(height: 12),
+                                            const Text(
+                                              'Habka Bixinta Qaybta Hadda (Payment Method):',
+                                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF991B1B)),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            _buildPaymentMethodSelector(setSheetState),
                                           ],
-                                        ),
+                                        ],
                                       );
                                     },
                                   ),
@@ -890,7 +895,9 @@ class _PharmacyPosPageState extends State<PharmacyPosPage> {
                           setState(() => _cart.clear());
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Iibka waxa loo diiwaangeliyay DEYN ahaan Macmiilka: $name (\$${remaining.toStringAsFixed(2)})!'),
+                              content: Text(paid > 0
+                                  ? 'Iibka waxa loo diiwaangeliyay DEYN ahaan Macmiilka: $name - Haraaga: \$${remaining.toStringAsFixed(2)} (Waxaa la bixiyay \$${paid.toStringAsFixed(2)} oo $_selectedPaymentMethod ah)!'
+                                  : 'Iibka waxa loo diiwaangeliyay DEYN ahaan Macmiilka: $name (\$${remaining.toStringAsFixed(2)})!'),
                               backgroundColor: const Color(0xFFEF4444),
                             ),
                           );
@@ -900,7 +907,7 @@ class _PharmacyPosPageState extends State<PharmacyPosPage> {
                           setState(() => _cart.clear());
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('Iibka farmashiyaha ($customerDisplayName) si buuxda ayaa loo xaqiijiyay (\$${_cartTotal.toStringAsFixed(2)})!'),
+                              content: Text('Iibka farmashiyaha ($customerDisplayName) ee \$${_cartTotal.toStringAsFixed(2)} si buuxda ayaa loogu bixiyay $_selectedPaymentMethod!'),
                               backgroundColor: const Color(0xFF10B981),
                             ),
                           );
@@ -912,9 +919,11 @@ class _PharmacyPosPageState extends State<PharmacyPosPage> {
                         elevation: 0,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      icon: Icon(isDaynPayment ? Icons.assignment_late_outlined : Icons.print_outlined, size: 20),
+                      icon: Icon(isDaynPayment ? Icons.assignment_late_outlined : Icons.check_circle_outline, size: 20),
                       label: Text(
-                        isDaynPayment ? 'Diiwaangeli Daynta' : widget.labels.confirmButtonLabel,
+                        isDaynPayment
+                            ? 'Diiwaangeli Daynta'
+                            : '${widget.labels.confirmButtonLabel} ($_selectedPaymentMethod)',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                     ),
@@ -1039,44 +1048,6 @@ class _PharmacyPosPageState extends State<PharmacyPosPage> {
     );
   }
 
-  Widget _buildOrderTypeSelector(StateSetter setSheetState) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(16)),
-      child: Row(
-        children: widget.orderTypes.map((type) {
-          final isSelected = _selectedOrderType == type.id;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () {
-                setSheetState(() => _selectedOrderType = type.id);
-                setState(() {});
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: isSelected ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  border: isSelected ? Border.all(color: const Color(0xFFEF4444), width: 1.5) : null,
-                  boxShadow: isSelected ? [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 4)] : null,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(type.icon, size: 18, color: isSelected ? const Color(0xFFEF4444) : const Color(0xFF9CA3AF)),
-                    const SizedBox(width: 6),
-                    Text(type.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isSelected ? const Color(0xFFEF4444) : const Color(0xFF6B7280))),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
   Widget _buildCartItemCard(PharmacyCartItem cartItem, StateSetter setSheetState) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1133,41 +1104,84 @@ class _PharmacyPosPageState extends State<PharmacyPosPage> {
   }
 
   Widget _buildPaymentMethodSelector(StateSetter setSheetState) {
-    return SizedBox(
-      height: 60,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: widget.paymentMethods.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final method = widget.paymentMethods[index];
-          final isSelected = _selectedPaymentMethod == method.id;
-          return GestureDetector(
+    return Row(
+      children: widget.paymentMethods.map((method) {
+        final isSelected = _selectedPaymentMethod == method.id;
+        return Expanded(
+          child: GestureDetector(
             onTap: () {
               setSheetState(() => _selectedPaymentMethod = method.id);
               setState(() {});
             },
             child: Container(
-              width: 100,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
               decoration: BoxDecoration(
-                color: isSelected ? method.color.withValues(alpha: 0.1) : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isSelected ? method.color : const Color(0xFFF1F3F6), width: isSelected ? 1.5 : 1),
+                color: isSelected ? const Color(0xFFFFF5F5) : Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isSelected ? const Color(0xFFEF4444) : const Color(0xFFE5E7EB),
+                  width: isSelected ? 1.5 : 1.0,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFFEF4444).withValues(alpha: 0.12),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
               ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (method.icon != null) Icon(method.icon, size: 18, color: method.color)
-                  else Text(method.symbol ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: method.color)),
-                  const SizedBox(height: 4),
-                  Text(method.label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? method.color : const Color(0xFF4B5563))),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: method.color,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: method.icon != null
+                        ? Icon(method.icon, color: Colors.white, size: 16)
+                        : Text(
+                            method.symbol ?? '',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    method.label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected ? const Color(0xFFEF4444) : const Color(0xFF1D2338),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    method.subtext,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFF8E99AF),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      }).toList(),
     );
   }
 

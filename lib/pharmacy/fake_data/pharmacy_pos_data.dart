@@ -239,11 +239,18 @@ const List<PharmacyPaymentMethod> samplePharmacyPaymentMethods = [
     symbol: 'eD',
   ),
   PharmacyPaymentMethod(
+    id: 'EVC Plus',
+    label: 'EVC Plus',
+    subtext: 'Hormuud',
+    color: Color(0xFF0D9488),
+    symbol: 'EVC',
+  ),
+  PharmacyPaymentMethod(
     id: 'Kaash',
     label: 'Kaash',
-    subtext: 'USD / SLSH',
+    subtext: 'Cash',
     color: Color(0xFF2563EB),
-    icon: Icons.account_balance_wallet_outlined,
+    icon: Icons.payments_outlined,
   ),
 ];
 

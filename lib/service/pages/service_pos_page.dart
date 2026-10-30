@@ -115,9 +115,14 @@ class _ServicePosPageState extends State<ServicePosPage> {
     });
   }
 
+  double _overallDiscount = 0.0;
+
   double get _cartSubtotal => _cart.fold(0.0, (sum, c) => sum + c.totalPrice);
-  double get _taxAmount => _cartSubtotal * (widget.sessionInfo.taxRatePercentage / 100);
-  double get _cartTotal => _cartSubtotal + _taxAmount;
+  double get _taxAmount =>
+      ((_cartSubtotal - _overallDiscount).clamp(0.0, double.infinity)) *
+      (widget.sessionInfo.taxRatePercentage / 100);
+  double get _cartTotal =>
+      ((_cartSubtotal - _overallDiscount).clamp(0.0, double.infinity)) + _taxAmount;
   int get _cartCount => _cart.fold(0, (sum, c) => sum + c.quantity);
 
   String _formatSecondaryCurrency(double usd) {
@@ -1418,7 +1423,7 @@ class _ServicePosPageState extends State<ServicePosPage> {
                           const SizedBox(height: 14),
 
                           // Calculation Summary Card
-                          _buildCalculationSummaryCard(),
+                          _buildCalculationSummaryCard(setSheetState),
                           const SizedBox(height: 14),
                         ],
                       ),
@@ -1452,7 +1457,10 @@ class _ServicePosPageState extends State<ServicePosPage> {
                             widget.onOrderConfirmed!(_cart);
                           }
                           Navigator.pop(context);
-                          setState(() => _cart.clear());
+                          setState(() {
+                            _cart.clear();
+                            _overallDiscount = 0.0;
+                          });
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Adeegga waxa loo diiwaangeliyay DEYN ahaan Macmiilka: $name$refNote (\$${remaining.toStringAsFixed(2)})!'),
@@ -1466,7 +1474,10 @@ class _ServicePosPageState extends State<ServicePosPage> {
                             widget.onOrderConfirmed!(_cart);
                           }
                           Navigator.pop(context);
-                          setState(() => _cart.clear());
+                          setState(() {
+                            _cart.clear();
+                            _overallDiscount = 0.0;
+                          });
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Iibka adeegga ($customerDisplayName$phoneNote$refNote) si buuxda ayaa loo xaqiijiyay (\$${_cartTotal.toStringAsFixed(2)})!'),
@@ -1879,9 +1890,14 @@ class _ServicePosPageState extends State<ServicePosPage> {
   }
 
   // --------------------------------------------------------------------------
-  // CALCULATION SUMMARY CARD (Matching Restaurant)
+  // CALCULATION SUMMARY CARD (Matching Restaurant & Retail with Bargain)
   // --------------------------------------------------------------------------
-  Widget _buildCalculationSummaryCard() {
+  Widget _buildCalculationSummaryCard(StateSetter setSheetState) {
+    const indigoTheme = Color(0xFF4F46E5);
+    final discountPct = _cartSubtotal > 0
+        ? (_overallDiscount / _cartSubtotal * 100.0)
+        : 0.0;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1899,7 +1915,12 @@ class _ServicePosPageState extends State<ServicePosPage> {
                 children: [
                   Text(
                     '\$${_cartSubtotal.toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1D2338)),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      decoration: _overallDiscount > 0 ? TextDecoration.lineThrough : null,
+                      color: _overallDiscount > 0 ? const Color(0xFF9CA3AF) : const Color(0xFF1D2338),
+                    ),
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -1910,6 +1931,30 @@ class _ServicePosPageState extends State<ServicePosPage> {
               ),
             ],
           ),
+          if (_overallDiscount > 0) ...[
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Gorgortan / Dhimis (${discountPct.toStringAsFixed(1)}%):',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF16A34A),
+                  ),
+                ),
+                Text(
+                  '-\$${_overallDiscount.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF16A34A),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1933,6 +1978,105 @@ class _ServicePosPageState extends State<ServicePosPage> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+
+          // BARGAIN / GORGORTAN TRIGGER BUTTON (Indigo theme)
+          InkWell(
+            onTap: () => _showOverallBargainDialog(
+              context,
+              _cartSubtotal,
+              _overallDiscount,
+              setSheetState,
+            ),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _overallDiscount != 0.0
+                    ? indigoTheme.withValues(alpha: 0.08)
+                    : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _overallDiscount != 0.0
+                      ? indigoTheme.withValues(alpha: 0.35)
+                      : const Color(0xFFCBD5E1),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: _overallDiscount != 0.0
+                              ? indigoTheme.withValues(alpha: 0.18)
+                              : const Color(0xFFE2E8F0),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.local_offer,
+                          size: 15,
+                          color: _overallDiscount != 0.0
+                              ? indigoTheme
+                              : const Color(0xFF475569),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Gorgortan / Qiimo Dhimis',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: _overallDiscount != 0.0
+                                  ? indigoTheme
+                                  : const Color(0xFF1E293B),
+                            ),
+                          ),
+                          Text(
+                            _overallDiscount != 0.0
+                                ? 'Laga dhimay: -\$${_overallDiscount.toStringAsFixed(2)} (${discountPct.toStringAsFixed(1)}% dhimis)'
+                                : 'Guji si aad wadarta gorgortan uga dhinto',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: _overallDiscount != 0.0
+                                  ? indigoTheme
+                                  : const Color(0xFF64748B),
+                              fontWeight: _overallDiscount != 0.0
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: indigoTheme,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _overallDiscount != 0.0 ? 'Wax ka beddel' : '+ Gorgortan',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 10),
             child: Divider(height: 1, color: Color(0xFFD1D5DB)),
@@ -1964,6 +2108,647 @@ class _ServicePosPageState extends State<ServicePosPage> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  // Dialog to bargain / negotiate the overall total in Service POS (Indigo theme)
+  void _showOverallBargainDialog(
+    BuildContext context,
+    double baseSubtotal,
+    double currentDiscount,
+    StateSetter setSheetState,
+  ) {
+    const themeColor = Color(0xFF4F46E5);
+    final currentNet = baseSubtotal - currentDiscount;
+    final targetPriceCtrl =
+        TextEditingController(text: currentNet.toStringAsFixed(2));
+    final discountCtrl =
+        TextEditingController(text: currentDiscount.toStringAsFixed(2));
+
+    showDialog<void>(
+      context: context,
+      builder: (dlgCtx) => StatefulBuilder(
+        builder: (dlgCtx, setDlgState) {
+          final parsedTargetPrice =
+              double.tryParse(targetPriceCtrl.text.trim());
+          final parsedDiscount = double.tryParse(discountCtrl.text.trim());
+
+          final bool hasValidNumbers = parsedTargetPrice != null &&
+              parsedDiscount != null &&
+              targetPriceCtrl.text.trim().isNotEmpty &&
+              discountCtrl.text.trim().isNotEmpty;
+
+          final double effectivePrice = parsedTargetPrice ?? baseSubtotal;
+          final double effectiveDiscount =
+              parsedDiscount ?? (baseSubtotal - effectivePrice);
+
+          final double discountPct = baseSubtotal > 0
+              ? (effectiveDiscount / baseSubtotal * 100.0)
+              : 0.0;
+          final double costPct = baseSubtotal > 0
+              ? (effectivePrice / baseSubtotal * 100.0)
+              : 0.0;
+
+          final double minAllowedPrice = baseSubtotal * 0.50;
+          final double maxAllowedPrice = baseSubtotal * 1.50;
+
+          final bool isUnderMin = effectivePrice < (minAllowedPrice - 0.009);
+          final bool isOverMax = effectivePrice > (maxAllowedPrice + 0.009);
+
+          final bool isValid = hasValidNumbers &&
+              !isUnderMin &&
+              !isOverMax &&
+              effectivePrice >= 0;
+
+          String? validationMessage;
+          if (!hasValidNumbers) {
+            validationMessage = 'Fadlan geli lambar sax ah';
+          } else if (isUnderMin) {
+            validationMessage =
+                '⚠️ Qiimuhu kama yaraan karo 50% (\$${minAllowedPrice.toStringAsFixed(2)}).';
+          } else if (isOverMax) {
+            validationMessage =
+                '⚠️ Qiimuhu kama badnaan karo 150% (\$${maxAllowedPrice.toStringAsFixed(2)}).';
+          }
+
+          final quickPercentages = [5, 10, 15, 20, 25, 30, 50];
+
+          return Dialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            clipBehavior: Clip.antiAlias,
+            insetPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // --- HEADER BANNER WITH INDIGO TINT ---
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+                    decoration: BoxDecoration(
+                      color: themeColor.withValues(alpha: 0.08),
+                      border: Border(
+                        bottom: BorderSide(
+                            color: themeColor.withValues(alpha: 0.22), width: 1),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: themeColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: themeColor.withValues(alpha: 0.35)),
+                          ),
+                          child: const Icon(
+                            Icons.local_offer_rounded,
+                            color: themeColor,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Gorgortanka Wadarta Guud',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: themeColor,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Xadku waa 50% ilaa 150% ee qiimaha asalka ah',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF6366F1),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          color: themeColor,
+                          splashRadius: 18,
+                          onPressed: () => Navigator.pop(dlgCtx),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // --- BODY CONTENT ---
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Live calculation summary card
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Wadarta Hore',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '\$${baseSubtotal.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF334155),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: !isValid
+                                      ? const Color(0xFFFEF2F2)
+                                      : (effectiveDiscount > 0
+                                          ? const Color(0xFFFEF2F2)
+                                          : (effectiveDiscount < 0
+                                              ? const Color(0xFFF0FDF4)
+                                              : const Color(0xFFF1F5F9))),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: !isValid
+                                        ? const Color(0xFFFECACA)
+                                        : (effectiveDiscount > 0
+                                            ? const Color(0xFFFECACA)
+                                            : (effectiveDiscount < 0
+                                                ? const Color(0xFFBBF7D0)
+                                                : const Color(0xFFE2E8F0))),
+                                  ),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          effectiveDiscount >= 0
+                                              ? Icons.remove_circle_outline
+                                              : Icons.add_circle_outline,
+                                          size: 12,
+                                          color: effectiveDiscount > 0
+                                              ? const Color(0xFFDC2626)
+                                              : const Color(0xFF16A34A),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          effectiveDiscount >= 0
+                                              ? '-\$${effectiveDiscount.toStringAsFixed(2)}'
+                                              : '+\$${(-effectiveDiscount).toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: effectiveDiscount > 0
+                                                ? const Color(0xFFDC2626)
+                                                : const Color(0xFF16A34A),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      effectiveDiscount >= 0
+                                          ? '${discountPct.toStringAsFixed(1)}% dhimis'
+                                          : '+${(-discountPct).toStringAsFixed(1)}% dheeraad',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color: effectiveDiscount > 0
+                                            ? const Color(0xFFDC2626)
+                                            : const Color(0xFF16A34A),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                flex: 4,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: isValid
+                                        ? const Color(0xFFEEF2FF)
+                                        : const Color(0xFFFEF2F2),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isValid
+                                          ? const Color(0xFFC7D2FE)
+                                          : const Color(0xFFFECACA),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        isValid ? 'Wadarta Bixinta' : 'Qiime Qaldan',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: isValid
+                                              ? themeColor
+                                              : const Color(0xFFB91C1C),
+                                        ),
+                                      ),
+                                      Text(
+                                        '\$${effectivePrice.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w800,
+                                          color: isValid
+                                              ? themeColor
+                                              : const Color(0xFFDC2626),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Validation banner
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isValid
+                                ? const Color(0xFFEEF2FF)
+                                : const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isValid
+                                  ? const Color(0xFFC7D2FE)
+                                  : const Color(0xFFFECACA),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isValid
+                                    ? Icons.info_outline_rounded
+                                    : Icons.warning_amber_rounded,
+                                size: 16,
+                                color: isValid
+                                    ? themeColor
+                                    : const Color(0xFFDC2626),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  isValid
+                                      ? (effectiveDiscount >= 0
+                                          ? 'Dhimista hadda: ${discountPct.toStringAsFixed(1)}% (${costPct.toStringAsFixed(1)}% ee qiimaha asalka)'
+                                          : 'Dheeraadka hadda: +${(-discountPct).toStringAsFixed(1)}%')
+                                      : validationMessage!,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: isValid
+                                        ? themeColor
+                                        : const Color(0xFFB91C1C),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Quick Reductions chips
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.bolt,
+                                    size: 14, color: themeColor),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Dhimis Degdeg ah (Quick Reductions):',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF475569),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              'Boqolkiiba la xisaabiyay',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: quickPercentages.map((pct) {
+                            final discVal = (baseSubtotal * pct / 100.0);
+                            final isSelected = hasValidNumbers &&
+                                (effectiveDiscount - discVal).abs() < 0.01;
+                            return InkWell(
+                              onTap: () {
+                                final newNet = baseSubtotal - discVal;
+                                targetPriceCtrl.text =
+                                    newNet.toStringAsFixed(2);
+                                discountCtrl.text = discVal.toStringAsFixed(2);
+                                setDlgState(() {});
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 9, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? themeColor
+                                      : themeColor.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? themeColor
+                                        : themeColor.withValues(alpha: 0.25),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '-\$${discVal.toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : themeColor,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 4, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.white.withValues(alpha: 0.25)
+                                            : themeColor.withValues(alpha: 0.15),
+                                        borderRadius:
+                                            BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        '$pct%',
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? Colors.white
+                                              : themeColor,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Inputs
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: (isUnderMin || isOverMax)
+                                  ? const Color(0xFFF87171)
+                                  : const Color(0xFFCBD5E1),
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.point_of_sale_rounded,
+                                      size: 15, color: Color(0xFF4F46E5)),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Wadarta Cusub (Sold-At Total)',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: Color(0xFF1E293B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: targetPriceCtrl,
+                                keyboardType: const TextInputType.numberWithOptions(
+                                    decimal: true),
+                                onChanged: (val) {
+                                  final numVal = double.tryParse(val.trim());
+                                  if (numVal != null) {
+                                    final calculatedDiscount =
+                                        baseSubtotal - numVal;
+                                    discountCtrl.text =
+                                        calculatedDiscount.toStringAsFixed(2);
+                                  }
+                                  setDlgState(() {});
+                                },
+                                decoration: InputDecoration(
+                                  prefixIcon: const Icon(Icons.attach_money,
+                                      size: 18, color: Color(0xFF4F46E5)),
+                                  isDense: true,
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Discount input
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFCBD5E1)),
+                          ),
+                          padding: const EdgeInsets.all(10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.local_offer_outlined,
+                                      size: 15, color: Color(0xFFD97706)),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Lacagta Laga Dhimayo (Discount)',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: Color(0xFF1E293B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: discountCtrl,
+                                keyboardType: const TextInputType.numberWithOptions(
+                                    decimal: true),
+                                onChanged: (val) {
+                                  final numVal = double.tryParse(val.trim());
+                                  if (numVal != null) {
+                                    final calculatedTarget =
+                                        baseSubtotal - numVal;
+                                    targetPriceCtrl.text =
+                                        calculatedTarget.toStringAsFixed(2);
+                                  }
+                                  setDlgState(() {});
+                                },
+                                decoration: InputDecoration(
+                                  prefixIcon: const Icon(Icons.remove,
+                                      size: 18, color: Color(0xFFD97706)),
+                                  isDense: true,
+                                  filled: true,
+                                  fillColor: const Color(0xFFF8FAFC),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                        color: Color(0xFFE2E8F0)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Actions
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF8FAFC),
+                      border: Border(
+                          top: BorderSide(color: Color(0xFFE2E8F0))),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF64748B),
+                              side: const BorderSide(color: Color(0xFFCBD5E1)),
+                              padding: const EdgeInsets.symmetric(vertical: 11),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _overallDiscount = 0.0;
+                              });
+                              setSheetState(() {});
+                              Navigator.pop(dlgCtx);
+                            },
+                            icon: const Icon(Icons.refresh_rounded, size: 16),
+                            label: const Text('Dib u Celi',
+                                style: TextStyle(
+                                    fontSize: 12, fontWeight: FontWeight.w600)),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 3,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isValid
+                                  ? themeColor
+                                  : const Color(0xFFCBD5E1),
+                              foregroundColor: isValid
+                                  ? Colors.white
+                                  : const Color(0xFF94A3B8),
+                              padding: const EdgeInsets.symmetric(vertical: 11),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                            onPressed: isValid
+                                ? () {
+                                    setState(() {
+                                      _overallDiscount = effectiveDiscount;
+                                    });
+                                    setSheetState(() {});
+                                    Navigator.pop(dlgCtx);
+                                  }
+                                : null,
+                            icon: const Icon(Icons.check_circle_rounded, size: 17),
+                            label: const Text('Xaqiiji Gorgortanka',
+                                style: TextStyle(
+                                    fontSize: 13, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }

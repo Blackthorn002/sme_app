@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'pages/retail_pos_page.dart';
-import 'pages/retail_inventory_page.dart';
+import '../general_features/models/gashi_models.dart';
+import '../general_features/pages/general_pos_page.dart';
+import '../general_features/pages/general_inventory_page.dart';
+import '../general_features/pages/general_credits_page.dart';
+import '../general_features/pages/general_settings_page.dart';
+import '../general_features/pages/general_sales_page.dart';
 import 'fake_data/retail_dashboard_data.dart';
 
 // ============================================================================
@@ -46,10 +50,22 @@ class _RetailViewState extends State<RetailView> {
           index: _currentIndex,
           children: [
             _buildDashboardPage(),
-            const RetailPosPage(),
-            const RetailInventoryPage(),
-            _buildPlaceholderPage('Deymaha & Macaamiisha'),
-            _buildPlaceholderPage('Settings-ka Dukaanka'),
+            const GeneralPosPage(
+              businessId: 2,
+              businessType: BusinessType.retail,
+            ),
+            const GeneralInventoryPage(
+              businessId: 2,
+              businessType: BusinessType.retail,
+            ),
+            const GeneralCreditsPage(
+              businessId: 2,
+              businessType: BusinessType.retail,
+            ),
+            const GeneralSettingsPage(
+              businessId: 2,
+              businessType: BusinessType.retail,
+            ),
           ],
         ),
       ),
@@ -86,31 +102,6 @@ class _RetailViewState extends State<RetailView> {
           BottomNavigationBarItem(
             icon: Icon(Icons.more_horiz),
             label: 'More',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlaceholderPage(String title) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.construction, size: 48, color: Colors.grey.shade400),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1D2338),
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'This screen is under active development.',
-            style: TextStyle(color: Colors.grey),
           ),
         ],
       ),
@@ -378,56 +369,82 @@ class _RetailViewState extends State<RetailView> {
   }
 
   Widget _buildMetricCard(RetailMetricItem metric) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F3F6)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: metric.iconBg,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(metric.icon, color: metric.iconColor, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  metric.label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF6B7280),
-                    height: 1.2,
+    final isSalesMetric = metric.label.contains('Iibka');
+    return GestureDetector(
+      onTap: isSalesMetric
+          ? () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (context) => const GeneralSalesPage(
+                    businessId: 2,
+                    businessType: BusinessType.retail,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  metric.value,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1D2338),
-                  ),
-                ),
-              ],
-            ),
+              );
+            }
+          : null,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSalesMetric
+                ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                : const Color(0xFFF1F3F6),
           ),
-        ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: metric.iconBg,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(metric.icon, color: metric.iconColor, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    metric.label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF6B7280),
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    metric.value,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1D2338),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSalesMetric)
+              const Icon(
+                Icons.chevron_right,
+                size: 16,
+                color: Color(0xFF9CA3AF),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -469,6 +486,11 @@ class _RetailViewState extends State<RetailView> {
                     // "Eeg kaydka" switches to Inventory tab
                     setState(() {
                       _currentIndex = 2;
+                    });
+                  } else if (index == 2) {
+                    // "Macaamiisha" switches to Credits tab
+                    setState(() {
+                      _currentIndex = 3;
                     });
                   }
                 },
@@ -571,7 +593,17 @@ class _RetailViewState extends State<RetailView> {
               ),
             ),
             GestureDetector(
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (context) => const GeneralSalesPage(
+                      businessId: 2,
+                      businessType: BusinessType.retail,
+                    ),
+                  ),
+                );
+              },
               child: Row(
                 children: const [
                   Text(
@@ -603,8 +635,20 @@ class _RetailViewState extends State<RetailView> {
           separatorBuilder: (context, index) => const SizedBox(height: 10),
           itemBuilder: (context, index) {
             final order = orders[index];
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            return GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (context) => const GeneralSalesPage(
+                      businessId: 2,
+                      businessType: BusinessType.retail,
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -714,9 +758,10 @@ class _RetailViewState extends State<RetailView> {
                   ),
                 ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
+      ),
       ],
     );
   }

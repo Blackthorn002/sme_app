@@ -3,6 +3,8 @@ import '../fake_data/restaurant_pos_data.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/restaurant_menu_controller.dart';
 import 'restaurant_menu_page.dart';
+import '../../general_features/repository/gashi_repository.dart';
+import '../../general_features/models/gashi_models.dart';
 
 // ============================================================================
 // RESTAURANT POS PAGE WIDGET
@@ -880,9 +882,10 @@ class _RestaurantPosPageState extends State<RestaurantPosPage> {
   // --------------------------------------------------------------------------
   void _showCartBottomSheet() {
     bool isDaynPayment = false;
-    final isDineInInitial = _selectedOrderType == 'Miis';
-    final debtorNameCtrl = TextEditingController(text: !isDineInInitial ? widget.customerInfo.name : '');
-    final debtorPhoneCtrl = TextEditingController(text: !isDineInInitial ? widget.customerInfo.phone : '');
+    final deliveryNameCtrl = TextEditingController();
+    final deliveryLocationCtrl = TextEditingController();
+    final debtorNameCtrl = TextEditingController();
+    final debtorPhoneCtrl = TextEditingController();
     final paidNowCtrl = TextEditingController(text: '0.00');
     final dueDateCtrl = TextEditingController();
 
@@ -1085,12 +1088,6 @@ class _RestaurantPosPageState extends State<RestaurantPosPage> {
                           _buildOrderTypeSegmentedToggle(setSheetState),
                           const SizedBox(height: 14),
 
-                          // If NOT Dine-In, show Customer Info Card ("Xogta Macaamiilka")
-                          if (!isDineIn) ...[
-                            _buildCustomerInfoCard(),
-                            const SizedBox(height: 14),
-                          ],
-
                           // Items Section: If Dine-In, show editable cart cards; if Safaari/Delivery, show prepared items card
                           if (isDineIn) ...[
                             Row(
@@ -1135,14 +1132,23 @@ class _RestaurantPosPageState extends State<RestaurantPosPage> {
                             const SizedBox(height: 14),
                           ],
 
-                          // Customer Information Card (Collected for All Orders: Full Payment or Debt)
-                          _buildCustomerInformationSection(
-                            setSheetState: setSheetState,
-                            isDaynPayment: isDaynPayment,
-                            nameCtrl: debtorNameCtrl,
-                            phoneCtrl: debtorPhoneCtrl,
-                          ),
-                          const SizedBox(height: 14),
+                          // Customer Information:
+                          // - If Delivery: ask Name and Location only ("ask a name and a location that is it")
+                          // - If Dayn: ask Debtor Name and Phone
+                          // - If Paid now (Miis or Safaari): NO name required!
+                          if (_selectedOrderType == 'Delivery') ...[
+                            _buildDeliveryInformationSection(
+                              nameCtrl: deliveryNameCtrl,
+                              locationCtrl: deliveryLocationCtrl,
+                            ),
+                            const SizedBox(height: 14),
+                          ] else if (isDaynPayment) ...[
+                            _buildDaynCustomerSection(
+                              nameCtrl: debtorNameCtrl,
+                              phoneCtrl: debtorPhoneCtrl,
+                            ),
+                            const SizedBox(height: 14),
+                          ],
 
                           // Payment Type & Dayn Switcher
                           Row(
@@ -1318,45 +1324,111 @@ class _RestaurantPosPageState extends State<RestaurantPosPage> {
                     height: 52,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        final name = debtorNameCtrl.text.trim();
-                        if (isDaynPayment) {
-                          if (name.isEmpty) {
+                        final isDelivery = _selectedOrderType == 'Delivery';
+                        final deliveryName = deliveryNameCtrl.text.trim();
+                        final deliveryLocation = deliveryLocationCtrl.text.trim();
+                        final debtorName = debtorNameCtrl.text.trim();
+
+                        // 1. Delivery validation: requires name and location only
+                        if (isDelivery) {
+                          if (deliveryName.isEmpty || deliveryLocation.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Fadlan geli magaca macmiilka deynta loo qorayo!')),
+                              const SnackBar(
+                                content: Text('Fadlan geli magaca iyo goobta geynta dalabka (Delivery)!'),
+                                backgroundColor: Color(0xFFDC2626),
+                              ),
                             );
                             return;
                           }
-                          final paid = double.tryParse(paidNowCtrl.text) ?? 0.0;
-                          final remaining = (_cartTotal - paid).clamp(0.0, _cartTotal);
-                          if (widget.onOrderConfirmed != null) {
-                            widget.onOrderConfirmed!(_cart);
-                          }
-                          Navigator.pop(context);
-                          setState(() {
-                            _cart.clear();
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Dalabka waxa loo diiwaangeliyay DEYN ahaan Macmiilka: $name (\$${remaining.toStringAsFixed(2)})!'),
-                              backgroundColor: const Color(0xFFEF4444),
-                            ),
-                          );
-                        } else {
-                          final customerDisplayName = name.isNotEmpty ? name : 'Macmiil Caadi ah';
-                          if (widget.onOrderConfirmed != null) {
-                            widget.onOrderConfirmed!(_cart);
-                          }
-                          Navigator.pop(context);
-                          setState(() {
-                            _cart.clear();
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Dalabka ($customerDisplayName) si buuxda ayaa loo bixiyay loona xaqiijiyay (\$${_cartTotal.toStringAsFixed(2)})!'),
-                              backgroundColor: const Color(0xFF10B981),
-                            ),
-                          );
                         }
+
+                        // 2. Dayn validation: requires debtor name
+                        if (isDaynPayment) {
+                          if (debtorName.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Fadlan geli magaca macmiilka deynta loo qorayo!'),
+                                backgroundColor: Color(0xFFDC2626),
+                              ),
+                            );
+                            return;
+                          }
+                        }
+
+                        // 3. Customer Display Name (Paid now does not require name!)
+                        String customerDisplayName;
+                        if (isDelivery) {
+                          customerDisplayName = deliveryName;
+                        } else if (isDaynPayment) {
+                          customerDisplayName = debtorName;
+                        } else {
+                          // Paid now for Dine-In or Takeaway: no name required
+                          customerDisplayName = isDineIn ? 'Miis' : 'Safaari';
+                        }
+
+                        final paidAmount = isDaynPayment
+                            ? (double.tryParse(paidNowCtrl.text) ?? 0.0)
+                            : _cartTotal;
+                        final paymentStatus = isDaynPayment
+                            ? (paidAmount > 0 ? 'partial' : 'credit')
+                            : 'paid';
+
+                        // 4. Record into GashiRepository Sales (used by Restaurant Sales page)
+                        GashiRepository.instance.recordSale(
+                          businessId: 3, // Restaurant
+                          customerName: customerDisplayName,
+                          orderType: _selectedOrderType,
+                          deliveryLocation: isDelivery ? deliveryLocation : null,
+                          totalAmount: _cartTotal,
+                          discount: 0.0,
+                          paidAmount: paidAmount,
+                          paymentStatus: paymentStatus,
+                          paymentMethod: isDaynPayment ? 'Credit' : _selectedPaymentMethod,
+                          customAttributes: {
+                            'title': isDelivery
+                                ? 'Delivery'
+                                : (isDineIn ? 'Miis' : 'Safaari'),
+                            'typeLabel': isDelivery
+                                ? 'Geyn'
+                                : (isDineIn ? 'Dine-in' : 'Takeaway'),
+                            'order_type': _selectedOrderType,
+                            'delivery_location': isDelivery ? deliveryLocation : null,
+                            'prep_time': widget.sessionInfo.prepTime,
+                            'waiter': widget.sessionInfo.waiterName,
+                          },
+                          items: _cart.map((cartItem) {
+                            return SaleItem(
+                              id: DateTime.now().millisecondsSinceEpoch + _cart.indexOf(cartItem),
+                              saleId: 0,
+                              productId: null, // Restaurant is POS-only, no stock quantity
+                              productName: cartItem.item.name,
+                              quantity: cartItem.quantity,
+                              unitPrice: cartItem.item.price,
+                              total: cartItem.totalPrice,
+                            );
+                          }).toList(),
+                        );
+
+                        if (widget.onOrderConfirmed != null) {
+                          widget.onOrderConfirmed!(_cart);
+                        }
+                        Navigator.pop(context);
+                        setState(() {
+                          _cart.clear();
+                        });
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              isDaynPayment
+                                  ? 'Dalabka waxa loo diiwaangeliyay DEYN ahaan Macmiilka: $debtorName (\$${(_cartTotal - paidAmount).toStringAsFixed(2)})!'
+                                  : (isDelivery
+                                      ? 'Dalabka Delivery ($deliveryName • $deliveryLocation) si buuxda ayaa loo diiwaangeliyay (\$${_cartTotal.toStringAsFixed(2)})!'
+                                      : 'Dalabka ($customerDisplayName) si buuxda ayaa loo bixiyay loona xaqiijiyay (\$${_cartTotal.toStringAsFixed(2)})!'),
+                            ),
+                            backgroundColor: isDaynPayment ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                          ),
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isDaynPayment ? const Color(0xFFEF4444) : const Color(0xFFFF5200),
@@ -1386,51 +1458,131 @@ class _RestaurantPosPageState extends State<RestaurantPosPage> {
   }
 
   // --------------------------------------------------------------------------
-  // ORDER TYPE SEGMENTED TOGGLE (Dynamic from widget.orderTypes)
-  Widget _buildCustomerInformationSection({
-    required StateSetter setSheetState,
-    required bool isDaynPayment,
+  // DELIVERY INFORMATION SECTION ("ask a name and a location that is it")
+  // --------------------------------------------------------------------------
+  Widget _buildDeliveryInformationSection({
+    required TextEditingController nameCtrl,
+    required TextEditingController locationCtrl,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFD8C2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.two_wheeler, size: 18, color: Color(0xFFFF5200)),
+              SizedBox(width: 8),
+              Text(
+                'Xogta Delivery-ga (Delivery Details)',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Color(0xFFC2410C),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Magaca Macmiilka (Name) *',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: Color(0xFF4B5563),
+                ),
+              ),
+              const SizedBox(height: 4),
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Geli magaca macmiilka delivery-ga...',
+                  filled: true,
+                  fillColor: Colors.white,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Goobta / Cinwaanka Geynta (Location) *',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  color: Color(0xFF4B5563),
+                ),
+              ),
+              const SizedBox(height: 4),
+              TextField(
+                controller: locationCtrl,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Wadada 26 June, Guriga #14...',
+                  filled: true,
+                  fillColor: Colors.white,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // DAYN (CREDIT) CUSTOMER SECTION
+  // --------------------------------------------------------------------------
+  Widget _buildDaynCustomerSection({
     required TextEditingController nameCtrl,
     required TextEditingController phoneCtrl,
   }) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
+        color: const Color(0xFFFFF5F5),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: const Color(0xFFFECACA)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          const Row(
             children: [
-              Row(
-                children: const [
-                  Icon(Icons.person_outline, size: 18, color: Color(0xFFFF5200)),
-                  SizedBox(width: 6),
-                  Text(
-                    'Macluumaadka Macmiilka (Customer Info)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1D2338)),
-                  ),
-                ],
-              ),
-              if (!isDaynPayment)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3EB),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'Iibka Caadiga ah',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFFFF5200)),
-                  ),
+              Icon(Icons.assignment_late_outlined, size: 18, color: Color(0xFFDC2626)),
+              SizedBox(width: 8),
+              Text(
+                'Macmiilka Deynta loo Qorayo (Debtor Details)',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Color(0xFF991B1B),
                 ),
+              ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -1438,24 +1590,27 @@ class _RestaurantPosPageState extends State<RestaurantPosPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      isDaynPayment ? 'Magaca Macmiilka *' : 'Magaca Macmiilka',
+                    const Text(
+                      'Magaca *',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
-                        color: isDaynPayment ? const Color(0xFFDC2626) : const Color(0xFF4B5563),
+                        color: Color(0xFFDC2626),
                       ),
                     ),
                     const SizedBox(height: 4),
                     TextField(
                       controller: nameCtrl,
                       decoration: InputDecoration(
-                        hintText: 'Geli magaca macmiilka',
+                        hintText: 'Magaca qofka deynta',
                         filled: true,
                         fillColor: Colors.white,
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
                       ),
                     ),
                   ],
@@ -1467,12 +1622,12 @@ class _RestaurantPosPageState extends State<RestaurantPosPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      isDaynPayment ? 'Taleefanka *' : 'Taleefanka',
+                    const Text(
+                      'Tel: (ikhtiyaari)',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
-                        color: isDaynPayment ? const Color(0xFFDC2626) : const Color(0xFF4B5563),
+                        color: Color(0xFF4B5563),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1480,12 +1635,15 @@ class _RestaurantPosPageState extends State<RestaurantPosPage> {
                       controller: phoneCtrl,
                       keyboardType: TextInputType.phone,
                       decoration: InputDecoration(
-                        hintText: '+252 63 ...',
+                        hintText: '+252 63...',
                         filled: true,
                         fillColor: Colors.white,
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
                       ),
                     ),
                   ],
@@ -1729,196 +1887,6 @@ class _RestaurantPosPageState extends State<RestaurantPosPage> {
                     child: Icon(Icons.add, size: 16, color: Color(0xFFFF5200)),
                   ),
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --------------------------------------------------------------------------
-  // CUSTOMER INFO CARD ("Xogta Macaamiilka" - FOR SAFARI / DELIVERY)
-  // --------------------------------------------------------------------------
-  Widget _buildCustomerInfoCard() {
-    final info = widget.customerInfo;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEAF4F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.person_outline,
-                    size: 16,
-                    color: Color(0xFF10B981),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    widget.labels.customerInfoTitle,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1D2338),
-                    ),
-                  ),
-                ],
-              ),
-              if (info.customerStatus.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE6F7F0),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    info.customerStatus,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF10B981),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Field 1: Customer Name
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFF1F3F6)),
-            ),
-            child: Row(
-              children: [
-                const Text(
-                  'Macaamiil: ',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF6B7280),
-                  ),
-                ),
-                Text(
-                  info.name,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1D2338),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
-
-          // Field 2: Tel + Provider badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFF1F3F6)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.phone_outlined, size: 14, color: Color(0xFF10B981)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Tel: ${info.phone}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1D2338),
-                      ),
-                    ),
-                  ],
-                ),
-                if (info.paymentProvider.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE6F7F0),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      info.paymentProvider,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF10B981),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
-
-          // Field 3: Lacagta la bixiyay + Status badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFF1F3F6)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.monetization_on_outlined, size: 14, color: Color(0xFFFF5200)),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Lacagta la bixiyay: ',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                    Text(
-                      '\$${info.paidAmount.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1D2338),
-                      ),
-                    ),
-                  ],
-                ),
-                if (info.paymentStatus.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3EB),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      info.paymentStatus,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFFFF5200),
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),

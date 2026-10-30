@@ -26,6 +26,10 @@ class _ServiceSalesPageState extends State<ServiceSalesPage> {
     List<ServiceSalesTicket> periodTickets;
     if (_selectedPeriod == 'Maanta') {
       periodTickets = sampleServiceSalesTickets.where((t) => t.isToday).toList();
+    } else if (_selectedPeriod == 'Toddobaadkan') {
+      periodTickets = sampleServiceSalesTickets
+          .where((t) => t.isToday || t.date.contains('Shalay') || t.date.contains('28') || t.date.contains('27'))
+          .toList();
     } else {
       periodTickets = sampleServiceSalesTickets;
     }
