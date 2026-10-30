@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../business/business_controller.dart';
+import '../business/business_profile.dart';
+import '../business/business_settings_page.dart';
+import '../l10n/app_localizations.dart';
 import 'pages/pharmacy_pos_page.dart';
 import 'pages/pharmacy_inventory_page.dart';
 import 'pages/pharmacy_patients_page.dart';
@@ -29,7 +33,7 @@ class PharmacyView extends StatefulWidget {
 }
 
 class _PharmacyViewState extends State<PharmacyView> {
-  int _currentIndex = 0;
+  BusinessModule _currentModule = BusinessModule.home;
   late String _selectedCurrency;
 
   @override
@@ -38,83 +42,71 @@ class _PharmacyViewState extends State<PharmacyView> {
     _selectedCurrency = widget.headerData.currencies.first;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFC),
-      body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _buildDashboardPage(),
-            const PharmacyPosPage(),
-            const PharmacyInventoryPage(),
-            const PharmacyPatientsPage(),
-            _buildPlaceholderPage('More Settings'),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFFEF4444),
-        unselectedItemColor: const Color(0xFF9CA3AF),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.point_of_sale),
-            label: 'POS',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2),
-            label: 'Kaydka',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'Bukaanada',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            label: 'More',
-          ),
-        ],
-      ),
-    );
+  void _goTo(BusinessModule module) {
+    if (!BusinessController.instance.modulesFor(BusinessType.pharmacy).contains(module)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('module_disabled'))),
+      );
+      return;
+    }
+    setState(() => _currentModule = module);
   }
 
-  Widget _buildPlaceholderPage(String title) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.construction, size: 48, color: Colors.grey.shade400),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1D2338),
+  Widget _buildModulePage(BusinessModule module) {
+    return switch (module) {
+      BusinessModule.pos => const PharmacyPosPage(),
+      BusinessModule.inventory => const PharmacyInventoryPage(),
+      BusinessModule.patients => const PharmacyPatientsPage(),
+      BusinessModule.more => const BusinessSettingsPage(),
+      _ => _buildDashboardPage(),
+    };
+  }
+
+  BottomNavigationBarItem _buildNavItem(BusinessModule module) {
+    return switch (module) {
+      BusinessModule.pos => const BottomNavigationBarItem(icon: Icon(Icons.point_of_sale), label: 'POS'),
+      BusinessModule.inventory => const BottomNavigationBarItem(icon: Icon(Icons.inventory_2), label: 'Kaydka'),
+      BusinessModule.patients => const BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: 'Bukaanada'),
+      BusinessModule.more => const BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
+      _ => const BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: BusinessController.instance,
+      builder: (context, _) {
+        final modules = BusinessController.instance.modulesFor(BusinessType.pharmacy);
+        final currentIndex = modules.contains(_currentModule) ? modules.indexOf(_currentModule) : 0;
+        return Scaffold(
+          backgroundColor: const Color(0xFFF9FAFC),
+          body: SafeArea(
+            child: IndexedStack(
+              index: currentIndex,
+              children: [
+                for (final module in modules)
+                  KeyedSubtree(key: ValueKey(module), child: _buildModulePage(module)),
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'This screen is under active development.',
-            style: TextStyle(color: Colors.grey),
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentModule = modules[index];
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: const Color(0xFFEF4444),
+            unselectedItemColor: const Color(0xFF9CA3AF),
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
+            items: [for (final module in modules) _buildNavItem(module)],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -445,9 +437,7 @@ class _PharmacyViewState extends State<PharmacyView> {
               return GestureDetector(
                 onTap: () {
                   if (index == 0) {
-                    setState(() {
-                      _currentIndex = 1;
-                    });
+                    _goTo(BusinessModule.pos);
                   }
                 },
                 child: isPrimary

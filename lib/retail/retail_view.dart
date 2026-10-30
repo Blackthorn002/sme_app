@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../business/business_controller.dart';
+import '../business/business_profile.dart';
+import '../business/business_settings_page.dart';
+import '../l10n/app_localizations.dart';
 import 'pages/retail_pos_page.dart';
 import 'pages/retail_inventory_page.dart';
 import 'fake_data/retail_dashboard_data.dart';
@@ -28,7 +32,7 @@ class RetailView extends StatefulWidget {
 }
 
 class _RetailViewState extends State<RetailView> {
-  int _currentIndex = 0;
+  BusinessModule _currentModule = BusinessModule.home;
   late String _selectedCurrency;
 
   @override
@@ -37,58 +41,71 @@ class _RetailViewState extends State<RetailView> {
     _selectedCurrency = widget.headerData.currencies.first;
   }
 
+  void _goTo(BusinessModule module) {
+    if (!BusinessController.instance.modulesFor(BusinessType.shop).contains(module)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('module_disabled'))),
+      );
+      return;
+    }
+    setState(() => _currentModule = module);
+  }
+
+  Widget _buildModulePage(BusinessModule module) {
+    return switch (module) {
+      BusinessModule.pos => const RetailPosPage(),
+      BusinessModule.inventory => const RetailInventoryPage(),
+      BusinessModule.credits => _buildPlaceholderPage('Deymaha & Macaamiisha'),
+      BusinessModule.more => const BusinessSettingsPage(),
+      _ => _buildDashboardPage(),
+    };
+  }
+
+  BottomNavigationBarItem _buildNavItem(BusinessModule module) {
+    return switch (module) {
+      BusinessModule.pos => const BottomNavigationBarItem(icon: Icon(Icons.point_of_sale), label: 'POS'),
+      BusinessModule.inventory => const BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined), label: 'Kaydka'),
+      BusinessModule.credits => const BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: 'Credits'),
+      BusinessModule.more => const BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
+      _ => const BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFC),
-      body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _buildDashboardPage(),
-            const RetailPosPage(),
-            const RetailInventoryPage(),
-            _buildPlaceholderPage('Deymaha & Macaamiisha'),
-            _buildPlaceholderPage('Settings-ka Dukaanka'),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFF10B981), // Green Theme
-        unselectedItemColor: const Color(0xFF9CA3AF),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Home',
+    return ListenableBuilder(
+      listenable: BusinessController.instance,
+      builder: (context, _) {
+        final modules = BusinessController.instance.modulesFor(BusinessType.shop);
+        final currentIndex = modules.contains(_currentModule) ? modules.indexOf(_currentModule) : 0;
+        return Scaffold(
+          backgroundColor: const Color(0xFFF9FAFC),
+          body: SafeArea(
+            child: IndexedStack(
+              index: currentIndex,
+              children: [
+                for (final module in modules)
+                  KeyedSubtree(key: ValueKey(module), child: _buildModulePage(module)),
+              ],
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.point_of_sale),
-            label: 'POS',
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentModule = modules[index];
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: const Color(0xFF10B981), // Green Theme
+            unselectedItemColor: const Color(0xFF9CA3AF),
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
+            items: [for (final module in modules) _buildNavItem(module)],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2_outlined),
-            label: 'Kaydka',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'Credits',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            label: 'More',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -462,14 +479,10 @@ class _RetailViewState extends State<RetailView> {
                 onTap: () {
                   if (index == 0) {
                     // "Iibi Alaab" switches to POS tab
-                    setState(() {
-                      _currentIndex = 1;
-                    });
+                    _goTo(BusinessModule.pos);
                   } else if (index == 1) {
                     // "Eeg kaydka" switches to Inventory tab
-                    setState(() {
-                      _currentIndex = 2;
-                    });
+                    _goTo(BusinessModule.inventory);
                   }
                 },
                 child: isPrimary

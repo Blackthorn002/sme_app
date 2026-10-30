@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../business/business_controller.dart';
+import '../business/business_profile.dart';
+import '../l10n/app_localizations.dart';
 import 'pages/restaurant_pos_page.dart';
 import 'pages/restaurant_sales_page.dart';
 import 'pages/restaurant_credits_page.dart';
@@ -31,7 +34,7 @@ class RestaurantView extends StatefulWidget {
 }
 
 class _RestaurantViewState extends State<RestaurantView> {
-  int _currentIndex = 0;
+  BusinessModule _currentModule = BusinessModule.home;
   late String _selectedCurrency;
 
   @override
@@ -40,58 +43,71 @@ class _RestaurantViewState extends State<RestaurantView> {
     _selectedCurrency = widget.headerData.currencies.first;
   }
 
+  void _goTo(BusinessModule module) {
+    if (!BusinessController.instance.modulesFor(BusinessType.restaurant).contains(module)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('module_disabled'))),
+      );
+      return;
+    }
+    setState(() => _currentModule = module);
+  }
+
+  Widget _buildModulePage(BusinessModule module) {
+    return switch (module) {
+      BusinessModule.pos => const RestaurantPosPage(),
+      BusinessModule.sales => const RestaurantSalesPage(),
+      BusinessModule.credits => const RestaurantCreditsPage(),
+      BusinessModule.more => const RestaurantSettingsPage(),
+      _ => _buildDashboardPage(),
+    };
+  }
+
+  BottomNavigationBarItem _buildNavItem(BusinessModule module) {
+    return switch (module) {
+      BusinessModule.pos => const BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: 'POS'),
+      BusinessModule.sales => const BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Sales'),
+      BusinessModule.credits => const BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: 'Credits'),
+      BusinessModule.more => const BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
+      _ => const BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFC),
-      body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _buildDashboardPage(),
-            const RestaurantPosPage(),
-            const RestaurantSalesPage(),
-            const RestaurantCreditsPage(),
-            const RestaurantSettingsPage(),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFFFF5200),
-        unselectedItemColor: const Color(0xFF9CA3AF),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Home',
+    return ListenableBuilder(
+      listenable: BusinessController.instance,
+      builder: (context, _) {
+        final modules = BusinessController.instance.modulesFor(BusinessType.restaurant);
+        final currentIndex = modules.contains(_currentModule) ? modules.indexOf(_currentModule) : 0;
+        return Scaffold(
+          backgroundColor: const Color(0xFFF9FAFC),
+          body: SafeArea(
+            child: IndexedStack(
+              index: currentIndex,
+              children: [
+                for (final module in modules)
+                  KeyedSubtree(key: ValueKey(module), child: _buildModulePage(module)),
+              ],
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant),
-            label: 'POS',
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentModule = modules[index];
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: const Color(0xFFFF5200),
+            unselectedItemColor: const Color(0xFF9CA3AF),
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
+            items: [for (final module in modules) _buildNavItem(module)],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Sales',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'Credits',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            label: 'More',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -440,13 +456,13 @@ class _RestaurantViewState extends State<RestaurantView> {
                 onTap: () {
                   if (index == 0) {
                     // "Dalab cusub" switches to POS tab
-                    setState(() => _currentIndex = 1);
+                    _goTo(BusinessModule.pos);
                   } else if (index == 1) {
                     // "Eeg iibka" switches to Sales tab
-                    setState(() => _currentIndex = 2);
+                    _goTo(BusinessModule.sales);
                   } else if (index == 2) {
                     // "Macaamiisha" switches to Credits tab
-                    setState(() => _currentIndex = 3);
+                    _goTo(BusinessModule.credits);
                   } else if (index == 3) {
                     // "Maamul Menu-ga" opens Menu Page
                     Navigator.push(
@@ -557,9 +573,7 @@ class _RestaurantViewState extends State<RestaurantView> {
             ),
             GestureDetector(
               onTap: () {
-                setState(() {
-                  _currentIndex = 2; // Navigate to Sales
-                });
+                _goTo(BusinessModule.sales);
               },
               child: Row(
                 children: const [
@@ -593,7 +607,7 @@ class _RestaurantViewState extends State<RestaurantView> {
           itemBuilder: (context, index) {
             final order = orders[index];
             return GestureDetector(
-              onTap: () => setState(() => _currentIndex = 2),
+              onTap: () => _goTo(BusinessModule.sales),
               child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(

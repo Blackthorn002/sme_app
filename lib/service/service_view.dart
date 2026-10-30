@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../business/business_controller.dart';
+import '../business/business_profile.dart';
+import '../l10n/app_localizations.dart';
 import 'pages/service_pos_page.dart';
 import 'pages/service_services_page.dart';
 import 'pages/service_credits_page.dart';
@@ -31,7 +34,7 @@ class ServiceView extends StatefulWidget {
 }
 
 class _ServiceViewState extends State<ServiceView> {
-  int _currentIndex = 0;
+  BusinessModule _currentModule = BusinessModule.home;
   late String _selectedCurrency;
 
   @override
@@ -40,58 +43,71 @@ class _ServiceViewState extends State<ServiceView> {
     _selectedCurrency = widget.headerData.currencies.first;
   }
 
+  void _goTo(BusinessModule module) {
+    if (!BusinessController.instance.modulesFor(BusinessType.serviceProvider).contains(module)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('module_disabled'))),
+      );
+      return;
+    }
+    setState(() => _currentModule = module);
+  }
+
+  Widget _buildModulePage(BusinessModule module) {
+    return switch (module) {
+      BusinessModule.pos => const ServicePosPage(),
+      BusinessModule.sales => const ServiceSalesPage(),
+      BusinessModule.credits => const ServiceCreditsPage(),
+      BusinessModule.more => const ServiceSettingsPage(),
+      _ => _buildDashboardPage(),
+    };
+  }
+
+  BottomNavigationBarItem _buildNavItem(BusinessModule module) {
+    return switch (module) {
+      BusinessModule.pos => const BottomNavigationBarItem(icon: Icon(Icons.point_of_sale), label: 'POS'),
+      BusinessModule.sales => const BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Sales'),
+      BusinessModule.credits => const BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: 'Credits'),
+      BusinessModule.more => const BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'Settings'),
+      _ => const BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFC),
-      body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _buildDashboardPage(),
-            const ServicePosPage(),
-            const ServiceSalesPage(),
-            const ServiceCreditsPage(),
-            const ServiceSettingsPage(),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFF4F46E5), // Indigo Theme
-        unselectedItemColor: const Color(0xFF9CA3AF),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Home',
+    return ListenableBuilder(
+      listenable: BusinessController.instance,
+      builder: (context, _) {
+        final modules = BusinessController.instance.modulesFor(BusinessType.serviceProvider);
+        final currentIndex = modules.contains(_currentModule) ? modules.indexOf(_currentModule) : 0;
+        return Scaffold(
+          backgroundColor: const Color(0xFFF9FAFC),
+          body: SafeArea(
+            child: IndexedStack(
+              index: currentIndex,
+              children: [
+                for (final module in modules)
+                  KeyedSubtree(key: ValueKey(module), child: _buildModulePage(module)),
+              ],
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.point_of_sale),
-            label: 'POS',
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentModule = modules[index];
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: const Color(0xFF4F46E5), // Indigo Theme
+            unselectedItemColor: const Color(0xFF9CA3AF),
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
+            items: [for (final module in modules) _buildNavItem(module)],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Sales',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'Credits',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            label: 'Settings',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -440,7 +456,7 @@ class _ServiceViewState extends State<ServiceView> {
                 onTap: () {
                   if (index == 0) {
                     // "Iibi Adeeg" switches to POS tab
-                    setState(() => _currentIndex = 1);
+                    _goTo(BusinessModule.pos);
                   } else if (index == 1) {
                     // "Eeg Adeegyada" opens Services Catalog
                     Navigator.push(
@@ -451,10 +467,10 @@ class _ServiceViewState extends State<ServiceView> {
                     );
                   } else if (index == 2) {
                     // "Eeg Iibka" switches to Sales tab (index 2 now next to POS)
-                    setState(() => _currentIndex = 2);
+                    _goTo(BusinessModule.sales);
                   } else if (index == 3) {
                     // "Deymaha & Macaamiil" switches to Credits tab (index 3)
-                    setState(() => _currentIndex = 3);
+                    _goTo(BusinessModule.credits);
                   }
                 },
                 child: isPrimary
@@ -557,7 +573,7 @@ class _ServiceViewState extends State<ServiceView> {
             ),
             GestureDetector(
               onTap: () {
-                setState(() => _currentIndex = 4); // Navigate to Sales
+                _goTo(BusinessModule.sales);
               },
               child: Row(
                 children: const [
@@ -589,7 +605,7 @@ class _ServiceViewState extends State<ServiceView> {
           itemBuilder: (context, index) {
             final order = orders[index];
             return GestureDetector(
-              onTap: () => setState(() => _currentIndex = 4),
+              onTap: () => _goTo(BusinessModule.sales),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
