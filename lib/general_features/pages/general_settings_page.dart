@@ -4,6 +4,8 @@ import '../../l10n/app_localizations.dart';
 import '../models/gashi_models.dart';
 import '../repository/gashi_repository.dart';
 import '../services/currency_service.dart';
+import '../onboarding/pages/dynamic_onboarding_wizard_page.dart';
+import '../onboarding/engine/module_recommendation_engine.dart';
 
 // ============================================================================
 // GENERAL SETTINGS PAGE (Configurable Across All Business Types)
@@ -87,6 +89,11 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                 // Feature Modules / Screen Toggles
                 _buildSectionTitle('Habaynta Qaybaha & Shaashadaha (Feature Toggles)'),
                 _buildFeatureTogglesCard(business, repo, themeColor),
+                const SizedBox(height: 16),
+
+                // Dynamic Onboarding & Modules Card
+                _buildSectionTitle('Qaybaha Firfircoon & Onboarding (Modules & Setup)'),
+                _buildModuleManagementCard(context, business, repo, themeColor),
                 const SizedBox(height: 20),
 
                 // Offline & Cloud Sync Card
@@ -362,6 +369,99 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
     );
   }
 
+  Widget _buildModuleManagementCard(
+      BuildContext context, Business business, GashiRepository repo, Color themeColor) {
+    final activeModules = repo.getEntitledModules(business.id);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF1F3F6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF5200).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.dashboard_customize_rounded, color: Color(0xFFFF5200), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Xulashada Qaybaha (Active Modules)',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    Text(
+                      '${activeModules.length} Modules Authorized',
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF8E99AF)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: activeModules.map((m) {
+              final name = ModuleRecommendationEngine.getModuleName(m);
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  name,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF374151)),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1D2338),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (context) => const DynamicOnboardingWizardPage(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: Color(0xFFFF5200)),
+              label: const Text(
+                'Bilow Onboarding Cusub (Reconfigure Suite)',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<_FeatureItemConfig> _getFeaturesForBusinessType(BusinessType type) {
     switch (type) {
       case BusinessType.restaurant:
@@ -503,9 +603,15 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
             icon: Icons.people_outline,
           ),
           _FeatureItemConfig(
+            key: 'orders',
+            title: 'Dalabaadkii u Dambeeyay',
+            description: 'Liiska dalabaadka dukaanka ee shaashadda koowaad',
+            icon: Icons.list_alt,
+          ),
+          _FeatureItemConfig(
             key: 'metrics',
             title: 'Kaadhadhka Xisaabta Maanta',
-            description: 'Dakhliga maanta, faa\'iidada iyo tirada iibka',
+            description: 'Guud-mar degdeg ah ee dakhliga iyo macaamiisha maanta',
             icon: Icons.analytics_outlined,
           ),
         ];
@@ -604,7 +710,7 @@ class _GeneralSettingsPageState extends State<GeneralSettingsPage> {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Magaca ganacsiga waxa loo beddelay: "$newName"'),
+                      content: Text('Magaca ganacsiga waxa loo beddelay: "' + newName + '"'),
                       backgroundColor: const Color(0xFF10B981),
                     ),
                   );

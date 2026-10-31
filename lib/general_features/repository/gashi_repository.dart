@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/gashi_models.dart';
+import '../onboarding/models/onboarding_models.dart';
 
 // ============================================================================
 // GASHI PLATFORM PRODUCTION POSTGRESQL SCHEMA REFERENCE
@@ -314,6 +315,117 @@ class GashiRepository extends ChangeNotifier {
     final b = getBusinessById(businessId);
     if (b == null) return true;
     return b.isFeatureEnabled(featureKey);
+  }
+
+  // --------------------------------------------------------------------------
+  // DYNAMIC ONBOARDING & MODULE ENTITLEMENT ENGINE
+  // --------------------------------------------------------------------------
+  final Map<int, List<String>> _businessEntitlements = {};
+  final Map<int, List<String>> _businessAddOns = {};
+
+  /// Creates and registers a newly onboarded business from the dynamic setup wizard
+  Business createOnboardedBusiness(BusinessConfig config) {
+    // Map category ID to existing BusinessType enum for backwards compatibility
+    BusinessType type = BusinessType.retail;
+    if (config.categoryId == 'pharmacy_healthcare') {
+      type = BusinessType.pharmacy;
+    } else if (config.categoryId == 'restaurant_food') {
+      type = BusinessType.restaurant;
+    } else if (config.categoryId == 'service_business' || config.categoryId == 'beauty_personal_care') {
+      type = BusinessType.service;
+    }
+
+    final newBusiness = Business(
+      id: config.id,
+      name: config.businessName,
+      businessType: type,
+      currency: config.currency,
+      language: 'so',
+      taxRate: 0.0,
+      createdAt: config.createdAt,
+      categoryId: config.categoryId,
+      categoryName: config.categoryName,
+      subcategoryId: config.subcategoryId,
+      subcategoryName: config.subcategoryName,
+      operations: config.operations,
+      activeModules: config.selectedModules,
+      activeAddOns: config.selectedAddOns,
+      country: config.country,
+      city: config.city,
+      timeZone: config.timeZone,
+      phone: config.phone,
+      email: config.email,
+      fiscalYearStart: config.fiscalYearStart,
+      employeeCount: config.employeeCount,
+      branchCount: config.branchCount,
+      logoUrl: config.logoUrl,
+    );
+
+    _businesses.insert(0, newBusiness);
+    _businessEntitlements[newBusiness.id] = List<String>.from(config.selectedModules);
+    _businessAddOns[newBusiness.id] = List<String>.from(config.selectedAddOns);
+
+    if (!_isOnline) _pendingSyncCount++;
+    notifyListeners();
+    return newBusiness;
+  }
+
+  /// Check whether a specific module is entitled & active for a business
+  bool isModuleActive(int businessId, String moduleCode) {
+    final modules = _businessEntitlements[businessId];
+    if (modules != null) {
+      return modules.contains(moduleCode);
+    }
+    final b = getBusinessById(businessId);
+    if (b != null) {
+      return b.activeModules.contains(moduleCode);
+    }
+    return true; // Default allow for demo businesses
+  }
+
+  /// Get list of active modules for a business
+  List<String> getEntitledModules(int businessId) {
+    if (_businessEntitlements.containsKey(businessId)) {
+      return List.unmodifiable(_businessEntitlements[businessId]!);
+    }
+    final b = getBusinessById(businessId);
+    if (b != null && b.activeModules.isNotEmpty) {
+      return List.unmodifiable(b.activeModules);
+    }
+    return const ['pos', 'inventory', 'sales', 'credits'];
+  }
+
+  /// Get list of active add-ons for a business
+  List<String> getEntitledAddOns(int businessId) {
+    if (_businessAddOns.containsKey(businessId)) {
+      return List.unmodifiable(_businessAddOns[businessId]!);
+    }
+    final b = getBusinessById(businessId);
+    if (b != null && b.activeAddOns.isNotEmpty) {
+      return List.unmodifiable(b.activeAddOns);
+    }
+    return const [];
+  }
+
+  /// Update active modules and add-ons for an existing business
+  void updateBusinessEntitlements({
+    required int businessId,
+    required List<String> modules,
+    required List<String> addOns,
+  }) {
+    _businessEntitlements[businessId] = List<String>.from(modules);
+    _businessAddOns[businessId] = List<String>.from(addOns);
+
+    final idx = _businesses.indexWhere((b) => b.id == businessId);
+    if (idx != -1) {
+      _businesses[idx] = _businesses[idx].copyWith(
+        activeModules: modules,
+        activeAddOns: addOns,
+      );
+    }
+
+    if (!_isOnline) _pendingSyncCount++;
+    notifyListeners();
   }
 
   // --------------------------------------------------------------------------

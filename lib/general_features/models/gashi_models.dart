@@ -74,6 +74,24 @@ class Business {
   final DateTime createdAt;
   final Map<String, bool> enabledFeatures; // Feature toggles (modules)
 
+  // Dynamic Onboarding & Module Selection Attributes
+  final String categoryId;
+  final String categoryName;
+  final String subcategoryId;
+  final String subcategoryName;
+  final List<String> operations;
+  final List<String> activeModules;
+  final List<String> activeAddOns;
+  final String country;
+  final String city;
+  final String timeZone;
+  final String phone;
+  final String email;
+  final String fiscalYearStart;
+  final int employeeCount;
+  final int branchCount;
+  final String logoUrl;
+
   const Business({
     required this.id,
     required this.name,
@@ -83,6 +101,22 @@ class Business {
     this.taxRate = 0.0,
     required this.createdAt,
     this.enabledFeatures = const {},
+    this.categoryId = 'retail_shops',
+    this.categoryName = 'Retail & Shops',
+    this.subcategoryId = 'general_store',
+    this.subcategoryName = 'General Store',
+    this.operations = const [],
+    this.activeModules = const ['pos', 'inventory', 'sales', 'credits'],
+    this.activeAddOns = const [],
+    this.country = 'Somalia / Somaliland',
+    this.city = 'Hargeisa',
+    this.timeZone = 'UTC+3 (EAT)',
+    this.phone = '',
+    this.email = '',
+    this.fiscalYearStart = 'January',
+    this.employeeCount = 1,
+    this.branchCount = 1,
+    this.logoUrl = '',
   });
 
   bool isFeatureEnabled(String featureKey) {
@@ -98,6 +132,22 @@ class Business {
         'tax_rate': taxRate,
         'created_at': createdAt.toIso8601String(),
         'enabled_features': enabledFeatures,
+        'category_id': categoryId,
+        'category_name': categoryName,
+        'subcategory_id': subcategoryId,
+        'subcategory_name': subcategoryName,
+        'operations': operations,
+        'active_modules': activeModules,
+        'active_add_ons': activeAddOns,
+        'country': country,
+        'city': city,
+        'time_zone': timeZone,
+        'phone': phone,
+        'email': email,
+        'fiscal_year_start': fiscalYearStart,
+        'employee_count': employeeCount,
+        'branch_count': branchCount,
+        'logo_url': logoUrl,
       };
 
   factory Business.fromJson(Map<String, dynamic> json) {
@@ -114,6 +164,22 @@ class Business {
       enabledFeatures: json['enabled_features'] != null
           ? Map<String, bool>.from(json['enabled_features'] as Map)
           : const {},
+      categoryId: json['category_id'] as String? ?? 'retail_shops',
+      categoryName: json['category_name'] as String? ?? 'Retail & Shops',
+      subcategoryId: json['subcategory_id'] as String? ?? 'general_store',
+      subcategoryName: json['subcategory_name'] as String? ?? 'General Store',
+      operations: (json['operations'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      activeModules: (json['active_modules'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? ['pos', 'inventory', 'sales', 'credits'],
+      activeAddOns: (json['active_add_ons'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      country: json['country'] as String? ?? 'Somalia / Somaliland',
+      city: json['city'] as String? ?? 'Hargeisa',
+      timeZone: json['time_zone'] as String? ?? 'UTC+3 (EAT)',
+      phone: json['phone'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      fiscalYearStart: json['fiscal_year_start'] as String? ?? 'January',
+      employeeCount: json['employee_count'] as int? ?? 1,
+      branchCount: json['branch_count'] as int? ?? 1,
+      logoUrl: json['logo_url'] as String? ?? '',
     );
   }
 
@@ -126,6 +192,22 @@ class Business {
     double? taxRate,
     DateTime? createdAt,
     Map<String, bool>? enabledFeatures,
+    String? categoryId,
+    String? categoryName,
+    String? subcategoryId,
+    String? subcategoryName,
+    List<String>? operations,
+    List<String>? activeModules,
+    List<String>? activeAddOns,
+    String? country,
+    String? city,
+    String? timeZone,
+    String? phone,
+    String? email,
+    String? fiscalYearStart,
+    int? employeeCount,
+    int? branchCount,
+    String? logoUrl,
   }) {
     return Business(
       id: id ?? this.id,
@@ -136,11 +218,26 @@ class Business {
       taxRate: taxRate ?? this.taxRate,
       createdAt: createdAt ?? this.createdAt,
       enabledFeatures: enabledFeatures ?? this.enabledFeatures,
+      categoryId: categoryId ?? this.categoryId,
+      categoryName: categoryName ?? this.categoryName,
+      subcategoryId: subcategoryId ?? this.subcategoryId,
+      subcategoryName: subcategoryName ?? this.subcategoryName,
+      operations: operations ?? this.operations,
+      activeModules: activeModules ?? this.activeModules,
+      activeAddOns: activeAddOns ?? this.activeAddOns,
+      country: country ?? this.country,
+      city: city ?? this.city,
+      timeZone: timeZone ?? this.timeZone,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
+      fiscalYearStart: fiscalYearStart ?? this.fiscalYearStart,
+      employeeCount: employeeCount ?? this.employeeCount,
+      branchCount: branchCount ?? this.branchCount,
+      logoUrl: logoUrl ?? this.logoUrl,
     );
   }
 }
 
-// Payment Methods Supported by Gashi (Zaad, e-Dahab, Kaashplus, Kaash, Deyn)
 class GashiPaymentMethods {
   static const String zaad = 'Zaad';
   static const String edahab = 'e-Dahab';
