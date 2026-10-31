@@ -41,18 +41,38 @@ class ServiceItem {
   final String? technician;
   final String? tag;
   final String? note;
+  final Map<String, dynamic> customAttributes;
 
   const ServiceItem({
     required this.id,
     required this.name,
     required this.price,
-    required this.duration,
-    required this.imageUrl,
+    this.duration = '30 daqiiqo',
+    this.imageUrl = 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?auto=format&fit=crop&w=400&q=80',
     required this.category,
     this.technician,
     this.tag,
     this.note,
+    this.customAttributes = const {},
   });
+
+  /// Returns the complete map of custom attributes, including duration, technician, and notes
+  Map<String, dynamic> get resolvedCustomAttributes {
+    final map = Map<String, dynamic>.from(customAttributes);
+    if (!map.containsKey('duration') && duration.isNotEmpty) {
+      map['duration'] = duration;
+    }
+    if (!map.containsKey('technician') && technician != null && technician!.isNotEmpty) {
+      map['technician'] = technician;
+    }
+    if (!map.containsKey('note') && note != null && note!.isNotEmpty) {
+      map['note'] = note;
+    }
+    if (!map.containsKey('tag') && tag != null && tag!.isNotEmpty) {
+      map['tag'] = tag;
+    }
+    return map;
+  }
 }
 
 class ServiceCartItem {
@@ -129,6 +149,13 @@ const List<ServiceItem> sampleServiceItems = [
     technician: 'Cabdi & Kooxda',
     tag: 'Caanka ah',
     note: 'Gudaha iyo dibadda baabuurka',
+    customAttributes: {
+      'duration': '45 daqiiqo',
+      'technician': 'Cabdi & Kooxda',
+      'tag': 'Caanka ah',
+      'note': 'Gudaha iyo dibadda baabuurka',
+      'warranty': 'Adeeg degdeg ah',
+    },
   ),
   ServiceItem(
     id: 's2',
@@ -140,6 +167,13 @@ const List<ServiceItem> sampleServiceItems = [
     technician: 'Eng. Xamze',
     tag: 'Damaanad leh',
     note: 'Shaashad Original ah oo leh 3 bilood damaanad',
+    customAttributes: {
+      'duration': '1 saac',
+      'technician': 'Eng. Xamze',
+      'tag': 'Damaanad leh',
+      'warranty': '3 Bilood Damaanad (3 Months Warranty)',
+      'note': 'Shaashad Original ah oo leh 3 bilood damaanad',
+    },
   ),
   ServiceItem(
     id: 's3',
@@ -151,6 +185,12 @@ const List<ServiceItem> sampleServiceItems = [
     technician: 'Mustafe Farsamo',
     tag: 'Degdeg',
     note: 'Saliid Total / Shell tayo sare leh',
+    customAttributes: {
+      'duration': '30 daqiiqo',
+      'technician': 'Mustafe Farsamo',
+      'oil_brand': 'Shell Helix / Total Quartz',
+      'note': 'Saliid Total / Shell tayo sare leh',
+    },
   ),
   ServiceItem(
     id: 's4',
@@ -162,6 +202,12 @@ const List<ServiceItem> sampleServiceItems = [
     technician: 'Ustaad Maxamed',
     tag: 'Tayada Sare',
     note: 'Tolasho casri ah oo cabbir sax ah leh',
+    customAttributes: {
+      'duration': '2 maalmood',
+      'technician': 'Ustaad Maxamed',
+      'style': 'Khamiis / Suit Casri ah',
+      'note': 'Tolasho casri ah oo cabbir sax ah leh',
+    },
   ),
   ServiceItem(
     id: 's5',
@@ -173,6 +219,11 @@ const List<ServiceItem> sampleServiceItems = [
     technician: 'Barber Cali',
     tag: 'Standard',
     note: 'Timo-jarid, makiinad iyo cream nadiifin',
+    customAttributes: {
+      'duration': '25 daqiiqo',
+      'technician': 'Barber Cali',
+      'note': 'Timo-jarid, makiinad iyo cream nadiifin',
+    },
   ),
   ServiceItem(
     id: 's6',
@@ -184,6 +235,12 @@ const List<ServiceItem> sampleServiceItems = [
     technician: 'Eng. Guuleed',
     tag: 'Guriga/Xafiiska',
     note: 'Qalabka router-ka iyo xadhkaha internetka',
+    customAttributes: {
+      'duration': '2 saacadood',
+      'technician': 'Eng. Guuleed',
+      'equipment': 'Router, UTP Cable & Connectors',
+      'note': 'Qalabka router-ka iyo xadhkaha internetka',
+    },
   ),
   ServiceItem(
     id: 's7',
@@ -195,6 +252,12 @@ const List<ServiceItem> sampleServiceItems = [
     technician: 'Xisaabiye Cabdilaahi',
     tag: 'Xirfadlayaal',
     note: 'Diyaarinta xisaabaadka iyo xisaab-xidhka',
+    customAttributes: {
+      'duration': '1 saac',
+      'technician': 'Xisaabiye Cabdilaahi',
+      'deliverable': 'Tax Declaration Report',
+      'note': 'Diyaarinta xisaabaadka iyo xisaab-xidhka',
+    },
   ),
 ];
 
