@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
-import '../general_features/models/gashi_models.dart';
-import '../general_features/pages/general_pos_page.dart';
-import '../general_features/pages/general_inventory_page.dart';
+import '../business/business_controller.dart';
+import '../business/business_profile.dart';
+import '../business/business_settings_page.dart';
+import '../general_features/models/gashi_models.dart' as gashi_models;
 import '../general_features/pages/general_credits_page.dart';
-import '../general_features/pages/general_settings_page.dart';
+import '../general_features/pages/general_inventory_page.dart';
+import '../general_features/pages/general_pos_page.dart';
 import '../general_features/pages/general_sales_page.dart';
 import '../general_features/repository/gashi_repository.dart';
 import '../general_features/services/currency_service.dart';
+import '../l10n/app_localizations.dart';
 import 'fake_data/retail_dashboard_data.dart';
 
 // ============================================================================
@@ -34,7 +37,7 @@ class RetailView extends StatefulWidget {
 }
 
 class _RetailViewState extends State<RetailView> {
-  int _currentIndex = 0;
+  BusinessModule _currentModule = BusinessModule.home;
   late String _selectedCurrency;
 
   @override
@@ -43,110 +46,102 @@ class _RetailViewState extends State<RetailView> {
     _selectedCurrency = widget.headerData.currencies.first;
   }
 
+  void _goTo(BusinessModule module) {
+    if (!BusinessController.instance.modulesFor(BusinessType.shop).contains(module)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('module_disabled'))),
+      );
+      return;
+    }
+    setState(() => _currentModule = module);
+  }
+
+  Widget _buildModulePage(
+    BusinessModule module,
+    String businessName,
+    GashiRepository repo,
+    int businessId,
+  ) {
+    return switch (module) {
+      BusinessModule.pos => const GeneralPosPage(
+          businessId: 2,
+          businessType: gashi_models.BusinessType.retail,
+        ),
+      BusinessModule.inventory => const GeneralInventoryPage(
+          businessId: 2,
+          businessType: gashi_models.BusinessType.retail,
+        ),
+      BusinessModule.credits => const GeneralCreditsPage(
+          businessId: 2,
+          businessType: gashi_models.BusinessType.retail,
+        ),
+      BusinessModule.sales => const GeneralSalesPage(
+          businessId: 2,
+          businessType: gashi_models.BusinessType.retail,
+        ),
+      BusinessModule.more => const BusinessSettingsPage(),
+      _ => _buildDashboardPage(businessName, repo, businessId),
+    };
+  }
+
+  BottomNavigationBarItem _buildNavItem(BusinessModule module) {
+    return switch (module) {
+      BusinessModule.pos => const BottomNavigationBarItem(icon: Icon(Icons.point_of_sale), label: 'POS'),
+      BusinessModule.inventory => const BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined), label: 'Kaydka'),
+      BusinessModule.credits => const BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: 'Credits'),
+      BusinessModule.more => const BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'More'),
+      _ => const BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([GashiRepository.instance, CurrencyService.instance]),
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        BusinessController.instance,
+        GashiRepository.instance,
+        CurrencyService.instance,
+      ]),
       builder: (context, _) {
         final repo = GashiRepository.instance;
-        final business = repo.getBusinessByType(BusinessType.retail);
+        final business = repo.getBusinessByType(gashi_models.BusinessType.retail);
         final businessId = business?.id ?? 2;
-        final businessName = business?.name ?? widget.headerData.appName;
+        final businessName = BusinessController.instance.profile?.name ??
+            business?.name ??
+            widget.headerData.appName;
 
-        final List<_RetailNavTab> availableTabs = [
-          _RetailNavTab(
-            key: 'home',
-            widget: _buildDashboardPage(businessName, repo, businessId),
-            navItem: const BottomNavigationBarItem(
-              icon: Icon(Icons.home_filled),
-              label: 'Home',
-            ),
-          ),
-          if (repo.isBusinessFeatureEnabled(businessId, 'pos'))
-            const _RetailNavTab(
-              key: 'pos',
-              widget: GeneralPosPage(
-                businessId: 2,
-                businessType: BusinessType.retail,
-              ),
-              navItem: BottomNavigationBarItem(
-                icon: Icon(Icons.point_of_sale),
-                label: 'POS',
-              ),
-            ),
-          if (repo.isBusinessFeatureEnabled(businessId, 'sales'))
-            const _RetailNavTab(
-              key: 'sales',
-              widget: GeneralSalesPage(
-                businessId: 2,
-                businessType: BusinessType.retail,
-              ),
-              navItem: BottomNavigationBarItem(
-                icon: Icon(Icons.receipt_long_outlined),
-                label: 'Sales',
-              ),
-            ),
-          if (repo.isBusinessFeatureEnabled(businessId, 'inventory'))
-            const _RetailNavTab(
-              key: 'inventory',
-              widget: GeneralInventoryPage(
-                businessId: 2,
-                businessType: BusinessType.retail,
-              ),
-              navItem: BottomNavigationBarItem(
-                icon: Icon(Icons.inventory_2_outlined),
-                label: 'Kaydka',
-              ),
-            ),
-          if (repo.isBusinessFeatureEnabled(businessId, 'credits'))
-            const _RetailNavTab(
-              key: 'credits',
-              widget: GeneralCreditsPage(
-                businessId: 2,
-                businessType: BusinessType.retail,
-              ),
-              navItem: BottomNavigationBarItem(
-                icon: Icon(Icons.people_outline),
-                label: 'Credits',
-              ),
-            ),
-          const _RetailNavTab(
-            key: 'settings',
-            widget: GeneralSettingsPage(
-              businessId: 2,
-              businessType: BusinessType.retail,
-            ),
-            navItem: BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined),
-              label: 'Settings',
-            ),
-          ),
-        ];
-
-        final safeIndex = _currentIndex.clamp(0, availableTabs.length - 1);
+        final modules = BusinessController.instance.modulesFor(BusinessType.shop);
+        final currentIndex =
+            modules.contains(_currentModule) ? modules.indexOf(_currentModule) : 0;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF9FAFC),
           body: SafeArea(
             child: IndexedStack(
-              index: safeIndex,
-              children: availableTabs.map((t) => t.widget).toList(),
+              index: currentIndex,
+              children: [
+                for (final module in modules)
+                  KeyedSubtree(
+                    key: ValueKey(module),
+                    child: _buildModulePage(module, businessName, repo, businessId),
+                  ),
+              ],
             ),
           ),
           bottomNavigationBar: BottomNavigationBar(
-            currentIndex: safeIndex,
+            currentIndex: currentIndex,
             onTap: (index) {
               setState(() {
-                _currentIndex = index;
+                _currentModule = modules[index];
               });
             },
             type: BottomNavigationBarType.fixed,
             backgroundColor: Colors.white,
             selectedItemColor: const Color(0xFF10B981), // Green Theme
             unselectedItemColor: const Color(0xFF9CA3AF),
-            selectedFontSize: 11,
-            unselectedFontSize: 11,
-            items: availableTabs.map((t) => t.navItem).toList(),
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
+            items: [for (final module in modules) _buildNavItem(module)],
           ),
         );
       },
@@ -154,19 +149,24 @@ class _RetailViewState extends State<RetailView> {
   }
 
   void _navigateToKey(String key) {
-    final repo = GashiRepository.instance;
-    final businessId = repo.getBusinessByType(BusinessType.retail)?.id ?? 2;
-    final List<String> activeKeys = [
-      'home',
-      if (repo.isBusinessFeatureEnabled(businessId, 'pos')) 'pos',
-      if (repo.isBusinessFeatureEnabled(businessId, 'sales')) 'sales',
-      if (repo.isBusinessFeatureEnabled(businessId, 'inventory')) 'inventory',
-      if (repo.isBusinessFeatureEnabled(businessId, 'credits')) 'credits',
-      'settings',
-    ];
-    final idx = activeKeys.indexOf(key);
-    if (idx != -1) {
-      setState(() => _currentIndex = idx);
+    switch (key) {
+      case 'pos':
+        _goTo(BusinessModule.pos);
+        break;
+      case 'inventory':
+        _goTo(BusinessModule.inventory);
+        break;
+      case 'credits':
+        _goTo(BusinessModule.credits);
+        break;
+      case 'sales':
+        _goTo(BusinessModule.sales);
+        break;
+      case 'settings':
+        _goTo(BusinessModule.more);
+        break;
+      default:
+        _goTo(BusinessModule.home);
     }
   }
 
@@ -444,7 +444,7 @@ class _RetailViewState extends State<RetailView> {
                 MaterialPageRoute<void>(
                   builder: (context) => const GeneralSalesPage(
                     businessId: 2,
-                    businessType: BusinessType.retail,
+                    businessType: gashi_models.BusinessType.retail,
                   ),
                 ),
               );
@@ -563,7 +563,7 @@ class _RetailViewState extends State<RetailView> {
               final isPrimary = action.isPrimary;
 
               return GestureDetector(
-                onTap: () => _navigateToKey(mapping.key),
+onTap: () => _navigateToKey(mapping.key),
                 child: isPrimary
                     ? Container(
                         width: 96,
@@ -669,7 +669,7 @@ class _RetailViewState extends State<RetailView> {
                   MaterialPageRoute<void>(
                     builder: (context) => const GeneralSalesPage(
                       businessId: 2,
-                      businessType: BusinessType.retail,
+                      businessType: gashi_models.BusinessType.retail,
                     ),
                   ),
                 );
@@ -712,7 +712,7 @@ class _RetailViewState extends State<RetailView> {
                   MaterialPageRoute<void>(
                     builder: (context) => const GeneralSalesPage(
                       businessId: 2,
-                      businessType: BusinessType.retail,
+                      businessType: gashi_models.BusinessType.retail,
                     ),
                   ),
                 );
@@ -837,17 +837,7 @@ class _RetailViewState extends State<RetailView> {
   }
 }
 
-class _RetailNavTab {
-  final String key;
-  final Widget widget;
-  final BottomNavigationBarItem navItem;
 
-  const _RetailNavTab({
-    required this.key,
-    required this.widget,
-    required this.navItem,
-  });
-}
 
 class _RetailQuickActionMapping {
   final String key;
@@ -858,4 +848,3 @@ class _RetailQuickActionMapping {
     required this.action,
   });
 }
-

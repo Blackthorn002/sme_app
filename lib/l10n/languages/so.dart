@@ -1,10 +1,8 @@
-// ============================================================================
-// SOMALI TRANSLATIONS (AF-SOOMAALI)
+// =====================================================================// SOMALI TRANSLATIONS (AF-SOOMAALI)
 // ----------------------------------------------------------------------------
 // Waxaad halkan si toos ah uga beddeli kartaa eray kasta oo Soomaali ah.
 // (You can go through this file later and fix/adjust every Somali word easily)
-// ============================================================================
-
+// =====================================================================
 final Map<String, String> soTranslations = {
   // Guud / General & Common
   'app_title': 'Nidaamka SME ee Ganacsiga',
@@ -236,5 +234,62 @@ final Map<String, String> soTranslations = {
   'credit_edit_reminder': 'Wax ka beddel Xusuusinta',
   'credit_active_debtors': 'Macaamiisha Deynta leh',
   'credit_overdue_count': 'Deymaha Waqtigoodu Dhaafay',
+  // Diyaarinta Ganacsiga, Qaybaha & Laamaha (Business Setup)
+  'setup_title': 'Diyaari ganacsigaaga',
+  'setup_step': 'Tallaabada {current} ee {total}',
+  'setup_continue': 'Sii wad',
+  'setup_create': 'Samee ganacsiga',
+  'setup_name_title': 'Ganacsigaagu muxuu yahay magaciisu?',
+  'setup_name_subtitle': 'Magacan wuxuu ka muuqanayaa dashboard-ka iyo rasiidhada.',
+  'setup_name_label': 'Magaca ganacsiga',
+  'setup_name_hint': 'tusaale: Hodan Mini Market',
+  'setup_type_title': 'Waa ganacsi noocee ah?',
+  'setup_type_subtitle': 'Gashi wuxuu shidayaa bogagga iyo dejimaha ku habboon ganacsigaaga.',
+  'setup_modules_title': 'Bogaggaaga',
+  'setup_modules_subtitle': 'Bogaggan waa u diyaar ganacsigaaga. Shid qaybo dheeraad ah haddii aad u baahato.',
+  'setup_default_pages': 'Bogagga caadiga ah',
+  'setup_optional_modules': 'Qaybaha ikhtiyaariga ah',
+  'setup_always_on': 'Had iyo jeer shidan',
+  'setup_modules_later': 'Qaybaha ikhtiyaariga ah waad beddeli kartaa mar dambe dejimaha ganacsiga.',
+  'setup_main_branch': 'Laanta ugu weyn',
+  'setup_main_branch_default': 'Laanta ugu weyn',
+  'setup_branches_later': 'Goobo kale ma leedahay? Laamo ku dar mar dambe dejimaha ganacsiga.',
+  'type_shop': 'Dukaan',
+  'type_shop_desc': 'Iibi badeecado, la soco kaydka iyo macaamiisha',
+  'type_restaurant': 'Makhaayad',
+  'type_restaurant_desc': 'Qaado dalabaadka, maamul menu-ga iyo iibka',
+  'type_pharmacy': 'Farmashiye',
+  'type_pharmacy_desc': 'Kaydka dawooyinka, warqadaha dhakhtarka iyo POS',
+  'type_service': 'Bixiye adeeg',
+  'type_service_desc': 'Dayactir, ballamo, farsamayaqaanno iyo deymo',
+  'module_home': 'Hoyga',
+  'module_home_desc': 'Dashboard-ka tirooyinka maanta',
+  'module_pos': 'POS',
+  'module_pos_desc': 'Diiwaan geli iibka oo daabac rasiidhada',
+  'module_inventory': 'Kaydka',
+  'module_inventory_desc': 'La soco heerka kaydka iyo badeecadaha',
+  'module_sales': 'Iibka',
+  'module_sales_desc': 'Taariikhda iibka iyo warbixinnada',
+  'module_credits': 'Deymaha & macaamiisha',
+  'module_credits_desc': 'La soco deymaha iyo dhigaalka macaamiisha',
+  'module_patients': 'Bukaanada',
+  'module_patients_desc': 'Diiwaanka bukaanada iyo warqadaha dhakhtarka',
+  'module_more': 'Dejimaha',
+  'module_more_desc': 'Ganacsiga, laamaha iyo dookhyada',
+  'module_disabled': 'Qaybtan way damsan tahay. Ka shid dejimaha ganacsiga.',
+  'business_settings_title': 'Dejimaha ganacsiga',
+  'business_settings_desc': 'Astaanta, qaybaha iyo laamaha',
+  'business_modules': 'Qaybaha',
+  'business_branches': 'Laamaha',
+  'business_rename': 'Beddel magaca ganacsiga',
+  'business_reset': 'Dib u bilow ganacsiga',
+  'business_reset_desc': 'Tirtir astaanta ganacsigan oo mar kale diyaari',
+  'business_reset_confirm': 'Tani waxay qalabkan ka tirtiraysaa magaca ganacsiga, qaybaha iyo laamaha. Ma sii wadaa?',
+  'branch_add': 'Ku dar laan',
+  'branch_edit': 'Wax ka beddel laanta',
+  'branch_name': 'Magaca laanta',
+  'branch_location': 'Goobta (ikhtiyaari)',
+  'branch_active': 'Laanta firfircoon',
+  'branch_tap_to_switch': 'Taabo si aad ugu wareegto laantan',
 };
 

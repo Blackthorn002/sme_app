@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
-import '../general_features/models/gashi_models.dart';
+import '../business/business_controller.dart';
+import '../business/business_profile.dart';
+import '../general_features/models/gashi_models.dart' as gashi_models;
 import '../general_features/pages/general_credits_page.dart';
-import '../general_features/pages/general_sales_page.dart';
-import '../general_features/pages/general_settings_page.dart';
 import '../general_features/repository/gashi_repository.dart';
 import '../general_features/services/currency_service.dart';
+import '../l10n/app_localizations.dart';
 import 'pages/service_pos_page.dart';
+import 'pages/service_sales_page.dart';
 import 'pages/service_services_page.dart';
+import 'pages/service_settings_page.dart';
 import 'fake_data/service_dashboard_data.dart';
 
 // ============================================================================
@@ -34,7 +37,7 @@ class ServiceView extends StatefulWidget {
 }
 
 class _ServiceViewState extends State<ServiceView> {
-  int _currentIndex = 0;
+  BusinessModule _currentModule = BusinessModule.home;
   late String _selectedCurrency;
 
   @override
@@ -43,104 +46,92 @@ class _ServiceViewState extends State<ServiceView> {
     _selectedCurrency = widget.headerData.currencies.first;
   }
 
+  void _goTo(BusinessModule module) {
+    if (!BusinessController.instance.modulesFor(BusinessType.serviceProvider).contains(module)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('module_disabled'))),
+      );
+      return;
+    }
+    setState(() => _currentModule = module);
+  }
+
+  Widget _buildModulePage(
+    BusinessModule module,
+    String businessName,
+    GashiRepository repo,
+    int businessId,
+  ) {
+    return switch (module) {
+      BusinessModule.pos => const ServicePosPage(),
+      BusinessModule.sales => const ServiceSalesPage(),
+      BusinessModule.credits => const GeneralCreditsPage(
+          businessId: 4,
+          businessType: gashi_models.BusinessType.service,
+        ),
+      BusinessModule.more => const ServiceSettingsPage(),
+      _ => _buildDashboardPage(businessName, repo, businessId),
+    };
+  }
+
+  BottomNavigationBarItem _buildNavItem(BusinessModule module) {
+    return switch (module) {
+      BusinessModule.pos => const BottomNavigationBarItem(icon: Icon(Icons.point_of_sale), label: 'POS'),
+      BusinessModule.sales => const BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Sales'),
+      BusinessModule.credits => const BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: 'Credits'),
+      BusinessModule.more => const BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'Settings'),
+      _ => const BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Home'),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: Listenable.merge([GashiRepository.instance, CurrencyService.instance]),
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        BusinessController.instance,
+        GashiRepository.instance,
+        CurrencyService.instance,
+      ]),
       builder: (context, _) {
         final repo = GashiRepository.instance;
-        final business = repo.getBusinessByType(BusinessType.service);
+        final business = repo.getBusinessByType(gashi_models.BusinessType.service);
         final businessId = business?.id ?? 4;
-        final businessName = business?.name ?? widget.headerData.appName;
+        final businessName = BusinessController.instance.profile?.name ??
+            business?.name ??
+            widget.headerData.appName;
 
-        final List<_ServiceNavTab> availableTabs = [
-          _ServiceNavTab(
-            key: 'home',
-            widget: _buildDashboardPage(businessName, repo, businessId),
-            navItem: const BottomNavigationBarItem(
-              icon: Icon(Icons.home_filled),
-              label: 'Home',
-            ),
-          ),
-          if (repo.isBusinessFeatureEnabled(businessId, 'pos'))
-            const _ServiceNavTab(
-              key: 'pos',
-              widget: ServicePosPage(),
-              navItem: BottomNavigationBarItem(
-                icon: Icon(Icons.point_of_sale),
-                label: 'POS',
-              ),
-            ),
-          if (repo.isBusinessFeatureEnabled(businessId, 'sales'))
-            const _ServiceNavTab(
-              key: 'sales',
-              widget: GeneralSalesPage(
-                businessId: 4,
-                businessType: BusinessType.service,
-              ),
-              navItem: BottomNavigationBarItem(
-                icon: Icon(Icons.receipt_long_outlined),
-                label: 'Sales',
-              ),
-            ),
-          if (repo.isBusinessFeatureEnabled(businessId, 'services'))
-            const _ServiceNavTab(
-              key: 'services',
-              widget: ServiceServicesPage(),
-              navItem: BottomNavigationBarItem(
-                icon: Icon(Icons.design_services_outlined),
-                label: 'Adeegyada',
-              ),
-            ),
-          if (repo.isBusinessFeatureEnabled(businessId, 'credits'))
-            const _ServiceNavTab(
-              key: 'credits',
-              widget: GeneralCreditsPage(
-                businessId: 4,
-                businessType: BusinessType.service,
-              ),
-              navItem: BottomNavigationBarItem(
-                icon: Icon(Icons.people_outline),
-                label: 'Deymaha',
-              ),
-            ),
-          const _ServiceNavTab(
-            key: 'settings',
-            widget: GeneralSettingsPage(
-              businessId: 4,
-              businessType: BusinessType.service,
-            ),
-            navItem: BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined),
-              label: 'Settings',
-            ),
-          ),
-        ];
-
-        final safeIndex = _currentIndex.clamp(0, availableTabs.length - 1);
+        final modules = BusinessController.instance.modulesFor(BusinessType.serviceProvider);
+        final currentIndex =
+            modules.contains(_currentModule) ? modules.indexOf(_currentModule) : 0;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF9FAFC),
           body: SafeArea(
             child: IndexedStack(
-              index: safeIndex,
-              children: availableTabs.map((t) => t.widget).toList(),
+              index: currentIndex,
+              children: [
+                for (final module in modules)
+                  KeyedSubtree(
+                    key: ValueKey(module),
+                    child: _buildModulePage(module, businessName, repo, businessId),
+                  ),
+              ],
             ),
           ),
           bottomNavigationBar: BottomNavigationBar(
-            currentIndex: safeIndex,
+            currentIndex: currentIndex,
             onTap: (index) {
               setState(() {
-                _currentIndex = index;
+                _currentModule = modules[index];
               });
             },
             type: BottomNavigationBarType.fixed,
             backgroundColor: Colors.white,
-            selectedItemColor: const Color(0xFF4F46E5), // Indigo Theme
+            selectedItemColor: const Color(0xFF4F46E5),
             unselectedItemColor: const Color(0xFF9CA3AF),
-            selectedFontSize: 11,
-            unselectedFontSize: 11,
-            items: availableTabs.map((t) => t.navItem).toList(),
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
+            items: [for (final module in modules) _buildNavItem(module)],
           ),
         );
       },
@@ -148,19 +139,29 @@ class _ServiceViewState extends State<ServiceView> {
   }
 
   void _navigateToKey(String key) {
-    final repo = GashiRepository.instance;
-    final businessId = repo.getBusinessByType(BusinessType.service)?.id ?? 4;
-    final List<String> activeKeys = [
-      'home',
-      if (repo.isBusinessFeatureEnabled(businessId, 'pos')) 'pos',
-      if (repo.isBusinessFeatureEnabled(businessId, 'sales')) 'sales',
-      if (repo.isBusinessFeatureEnabled(businessId, 'services')) 'services',
-      if (repo.isBusinessFeatureEnabled(businessId, 'credits')) 'credits',
-      'settings',
-    ];
-    final idx = activeKeys.indexOf(key);
-    if (idx != -1) {
-      setState(() => _currentIndex = idx);
+    switch (key) {
+      case 'pos':
+        _goTo(BusinessModule.pos);
+        break;
+      case 'sales':
+        _goTo(BusinessModule.sales);
+        break;
+      case 'services':
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (context) => const ServiceServicesPage(),
+          ),
+        );
+        break;
+      case 'credits':
+        _goTo(BusinessModule.credits);
+        break;
+      case 'settings':
+        _goTo(BusinessModule.more);
+        break;
+      default:
+        _goTo(BusinessModule.home);
     }
   }
 
@@ -536,7 +537,7 @@ class _ServiceViewState extends State<ServiceView> {
               final isPrimary = action.isPrimary;
 
               return GestureDetector(
-                onTap: () => _navigateToKey(mapping.key),
+onTap: () => _navigateToKey(mapping.key),
                 child: isPrimary
                     ? Container(
                         width: 96,
@@ -637,7 +638,7 @@ class _ServiceViewState extends State<ServiceView> {
             ),
             GestureDetector(
               onTap: () {
-                setState(() => _currentIndex = 4); // Navigate to Sales
+                _goTo(BusinessModule.sales);
               },
               child: Row(
                 children: const [
@@ -669,7 +670,7 @@ class _ServiceViewState extends State<ServiceView> {
           itemBuilder: (context, index) {
             final order = orders[index];
             return GestureDetector(
-              onTap: () => setState(() => _currentIndex = 4),
+              onTap: () => _goTo(BusinessModule.sales),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
@@ -785,17 +786,7 @@ class _ServiceViewState extends State<ServiceView> {
   }
 }
 
-class _ServiceNavTab {
-  final String key;
-  final Widget widget;
-  final BottomNavigationBarItem navItem;
 
-  const _ServiceNavTab({
-    required this.key,
-    required this.widget,
-    required this.navItem,
-  });
-}
 
 class _ServiceQuickActionMapping {
   final String key;
@@ -806,5 +797,3 @@ class _ServiceQuickActionMapping {
     required this.action,
   });
 }
-
-

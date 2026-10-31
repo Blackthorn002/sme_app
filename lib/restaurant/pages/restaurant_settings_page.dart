@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../business/business_settings_page.dart';
 import '../../l10n/app_language.dart';
 import '../../l10n/app_localizations.dart';
 import 'restaurant_menu_page.dart';
@@ -54,6 +55,8 @@ class _RestaurantSettingsPageState extends State<RestaurantSettingsPage> {
                 // Restaurant Profile Hero Card
                 _buildRestaurantProfileCard(),
                 const SizedBox(height: 16),
+                _buildBusinessSettingsCard(context),
+                const SizedBox(height: 16),
 
                 // Language Selector Card (English <-> Somali)
                 _buildSectionTitle(context.tr('settings_language')),
@@ -84,6 +87,46 @@ class _RestaurantSettingsPageState extends State<RestaurantSettingsPage> {
           ),
         );
       },
+    );
+  }
+
+
+  Widget _buildBusinessSettingsCard(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFF1F3F6)),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Color(0xFFFF5200).withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.business, color: Color(0xFFFF5200), size: 24),
+        ),
+        title: Text(
+          context.tr('business_settings_title'),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1D2338)),
+        ),
+        subtitle: Text(
+          context.tr('business_settings_desc'),
+          style: const TextStyle(fontSize: 12, color: Color(0xFF8E99AF)),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: Color(0xFFFF5200)),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute<void>(
+              builder: (context) => const BusinessSettingsPage(),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -406,11 +449,12 @@ class _RestaurantSettingsPageState extends State<RestaurantSettingsPage> {
   }
 
   Widget _buildPreferencesCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F3F6)),
+        side: const BorderSide(color: Color(0xFFF1F3F6)),
       ),
       child: Column(
         children: [
