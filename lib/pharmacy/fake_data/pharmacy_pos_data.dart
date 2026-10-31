@@ -1,5 +1,40 @@
 import 'package:flutter/material.dart';
 
+// ============================================================================
+// PHARMACY POS MEDICINE CATALOG & POSTGRESQL SCHEMA MAPPING
+// ============================================================================
+//
+// 1. DATA PURPOSE & EXPLANATION (Faahfaahinta Daawooyinka POS-ka Farmashiyaha):
+//    - Defines the pharmaceutical products, prescription drugs, and OTC medicines
+//      available in the Pharmacy Point of Sale.
+//    - Includes specialized Chronic Care medicines (Amlodipine, Metformin,
+//      Ventolin Inhaler, Atorvastatin) which are directly linked to the
+//      "Refill Daawada (POS)" button in Patient Medical Records.
+//
+// 2. BACKEND POSTGRESQL SCHEMA EQUIVALENT:
+//    - PharmacyMenuItem maps to the `products` table:
+//        id SERIAL PRIMARY KEY,
+//        business_id INT REFERENCES businesses(id),  -- business_id = 1 (Pharmacy)
+//        name VARCHAR(255) NOT NULL,
+//        selling_price NUMERIC(10, 2) NOT NULL,
+//        cost_price NUMERIC(10, 2) DEFAULT 0.00,
+//        stock_quantity INT DEFAULT 0,
+//        category VARCHAR(100),
+//        custom_attributes JSONB:
+//          {
+//            "dosage": "500mg",
+//            "expiry_date": "2027-10-15",
+//            "requires_prescription": true,
+//            "chronic_disease": "Dhiigkar / Hypertension"
+//          }
+//    - PharmacyCartItem maps to `sale_items` at checkout.
+//
+// 3. HOW TO MODIFY THIS DATA (Sida Daawo Cusub Loogu Daro):
+//    - To add a new medicine: Append a `PharmacyMenuItem` to `samplePharmacyProducts`.
+//    - To link a medicine to patient refills: Ensure the product name or ID matches
+//      the patient's regular prescription in `patient_medical_records_page.dart`.
+// ============================================================================
+
 class PharmacyMenuItem {
   final String id;
   final String name;
@@ -215,6 +250,46 @@ const List<PharmacyMenuItem> samplePharmacyMenuItems = [
     category: 'Sharoobo',
     note: 'Qufaca qallalan',
     stockQuantity: 40,
+  ),
+  PharmacyMenuItem(
+    id: '7',
+    name: 'Amlodipine',
+    price: 4.0,
+    imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=400&q=80',
+    category: 'Dhiigkar',
+    tag: '5mg',
+    note: 'Daawada Dhiigkarka (Chronic BP)',
+    stockQuantity: 95,
+  ),
+  PharmacyMenuItem(
+    id: '8',
+    name: 'Metformin',
+    price: 5.0,
+    imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=400&q=80',
+    category: 'Sonkorow',
+    tag: '500mg',
+    note: 'Daawada Sonkorowga (Type 2 Diabetes)',
+    stockQuantity: 110,
+  ),
+  PharmacyMenuItem(
+    id: '9',
+    name: 'Ventolin Inhaler',
+    price: 8.5,
+    imageUrl: 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?auto=format&fit=crop&w=400&q=80',
+    category: 'Neef',
+    tag: '100mcg',
+    note: 'Inhaler-ka Neefta (Asthma Relief)',
+    stockQuantity: 50,
+  ),
+  PharmacyMenuItem(
+    id: '10',
+    name: 'Atorvastatin',
+    price: 7.0,
+    imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=400&q=80',
+    category: 'Wadnaha',
+    tag: '20mg',
+    note: 'Dhimista Baruurta & Wadnaha',
+    stockQuantity: 75,
   ),
 ];
 

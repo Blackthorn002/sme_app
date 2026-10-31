@@ -211,5 +211,28 @@ final Map<String, String> enTranslations = {
   'sold_at_price': 'Sold At',
   'discount_label': 'Discount',
   'camera_launch_failed': 'Could not open camera',
+
+  // Reminder & Credit Enhancements
+  'reminder_schedule': 'Debt Reminder Schedule',
+  'reminder_mode_after_days': 'After X Days',
+  'reminder_mode_daily': 'Daily (From Day 1 Onward)',
+  'reminder_daily_desc': 'Daily reminder starting from the first day (tomorrow)',
+  'reminder_after_days_desc': 'Remind after the selected number of days',
+  'reminder_presets_days': 'Days',
+  'reminder_custom_days': 'Custom Days',
+  'credit_due_date_calc': 'Due Date',
+  'credit_overdue_warning': 'Overdue',
+  'credit_purchased_items': 'Purchased Items',
+  'credit_guarantor_notes': 'Guarantor & Notes',
+  'credit_payment_history': 'Payment & Sales Ledger',
+  'credit_financial_progress': 'Payment Progress',
+  'credit_total_debt': 'Total Debt',
+  'credit_amount_paid': 'Amount Paid',
+  'credit_remaining_balance': 'Remaining Balance',
+  'credit_call_customer': 'Call Customer',
+  'credit_collect_payment': 'Receive Payment',
+  'credit_edit_reminder': 'Edit Reminder',
+  'credit_active_debtors': 'Active Debtors',
+  'credit_overdue_count': 'Overdue Debts',
 };
 

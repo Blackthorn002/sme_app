@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import '../general_features/models/gashi_models.dart';
+import '../general_features/pages/general_credits_page.dart';
+import '../general_features/pages/general_sales_page.dart';
+import '../general_features/pages/general_settings_page.dart';
+import '../general_features/repository/gashi_repository.dart';
+import '../general_features/services/currency_service.dart';
 import 'pages/service_pos_page.dart';
 import 'pages/service_services_page.dart';
-import 'pages/service_credits_page.dart';
-import 'pages/service_sales_page.dart';
-import 'pages/service_settings_page.dart';
 import 'fake_data/service_dashboard_data.dart';
 
 // ============================================================================
@@ -42,60 +45,128 @@ class _ServiceViewState extends State<ServiceView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFC),
-      body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _buildDashboardPage(),
-            const ServicePosPage(),
-            const ServiceSalesPage(),
-            const ServiceCreditsPage(),
-            const ServiceSettingsPage(),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFF4F46E5), // Indigo Theme
-        unselectedItemColor: const Color(0xFF9CA3AF),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Home',
+    return AnimatedBuilder(
+      animation: Listenable.merge([GashiRepository.instance, CurrencyService.instance]),
+      builder: (context, _) {
+        final repo = GashiRepository.instance;
+        final business = repo.getBusinessByType(BusinessType.service);
+        final businessId = business?.id ?? 4;
+        final businessName = business?.name ?? widget.headerData.appName;
+
+        final List<_ServiceNavTab> availableTabs = [
+          _ServiceNavTab(
+            key: 'home',
+            widget: _buildDashboardPage(businessName, repo, businessId),
+            navItem: const BottomNavigationBarItem(
+              icon: Icon(Icons.home_filled),
+              label: 'Home',
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.point_of_sale),
-            label: 'POS',
+          if (repo.isBusinessFeatureEnabled(businessId, 'pos'))
+            const _ServiceNavTab(
+              key: 'pos',
+              widget: ServicePosPage(),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.point_of_sale),
+                label: 'POS',
+              ),
+            ),
+          if (repo.isBusinessFeatureEnabled(businessId, 'sales'))
+            const _ServiceNavTab(
+              key: 'sales',
+              widget: GeneralSalesPage(
+                businessId: 4,
+                businessType: BusinessType.service,
+              ),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.receipt_long_outlined),
+                label: 'Sales',
+              ),
+            ),
+          if (repo.isBusinessFeatureEnabled(businessId, 'services'))
+            const _ServiceNavTab(
+              key: 'services',
+              widget: ServiceServicesPage(),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.design_services_outlined),
+                label: 'Adeegyada',
+              ),
+            ),
+          if (repo.isBusinessFeatureEnabled(businessId, 'credits'))
+            const _ServiceNavTab(
+              key: 'credits',
+              widget: GeneralCreditsPage(
+                businessId: 4,
+                businessType: BusinessType.service,
+              ),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.people_outline),
+                label: 'Deymaha',
+              ),
+            ),
+          const _ServiceNavTab(
+            key: 'settings',
+            widget: GeneralSettingsPage(
+              businessId: 4,
+              businessType: BusinessType.service,
+            ),
+            navItem: BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              label: 'Settings',
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Sales',
+        ];
+
+        final safeIndex = _currentIndex.clamp(0, availableTabs.length - 1);
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF9FAFC),
+          body: SafeArea(
+            child: IndexedStack(
+              index: safeIndex,
+              children: availableTabs.map((t) => t.widget).toList(),
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'Credits',
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: safeIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: const Color(0xFF4F46E5), // Indigo Theme
+            unselectedItemColor: const Color(0xFF9CA3AF),
+            selectedFontSize: 11,
+            unselectedFontSize: 11,
+            items: availableTabs.map((t) => t.navItem).toList(),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            label: 'Settings',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildDashboardPage() {
+  void _navigateToKey(String key) {
+    final repo = GashiRepository.instance;
+    final businessId = repo.getBusinessByType(BusinessType.service)?.id ?? 4;
+    final List<String> activeKeys = [
+      'home',
+      if (repo.isBusinessFeatureEnabled(businessId, 'pos')) 'pos',
+      if (repo.isBusinessFeatureEnabled(businessId, 'sales')) 'sales',
+      if (repo.isBusinessFeatureEnabled(businessId, 'services')) 'services',
+      if (repo.isBusinessFeatureEnabled(businessId, 'credits')) 'credits',
+      'settings',
+    ];
+    final idx = activeKeys.indexOf(key);
+    if (idx != -1) {
+      setState(() => _currentIndex = idx);
+    }
+  }
+
+  Widget _buildDashboardPage(String businessName, GashiRepository repo, int businessId) {
+    final showMetrics = repo.isBusinessFeatureEnabled(businessId, 'metrics');
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -103,19 +174,21 @@ class _ServiceViewState extends State<ServiceView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header Section
-          _buildTopHeader(),
+          _buildTopHeader(businessName),
           const SizedBox(height: 16),
 
           // Indigo Hero Banner Card
-          _buildHeroBanner(),
+          _buildHeroBanner(businessName),
           const SizedBox(height: 16),
 
           // 2x2 Metric Cards Grid
-          _buildMetricsGrid(),
-          const SizedBox(height: 20),
+          if (showMetrics) ...[
+            _buildMetricsGrid(),
+            const SizedBox(height: 20),
+          ],
 
           // Quick Actions Section ("Degdegsiimo")
-          _buildQuickActionsSection(),
+          _buildQuickActionsSection(repo, businessId),
           const SizedBox(height: 20),
 
           // Recent Service Orders Section
@@ -126,7 +199,7 @@ class _ServiceViewState extends State<ServiceView> {
     );
   }
 
-  Widget _buildTopHeader() {
+  Widget _buildTopHeader(String businessName) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -159,7 +232,7 @@ class _ServiceViewState extends State<ServiceView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.headerData.appName,
+                  businessName,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -266,7 +339,7 @@ class _ServiceViewState extends State<ServiceView> {
     );
   }
 
-  Widget _buildHeroBanner() {
+  Widget _buildHeroBanner(String businessName) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
@@ -292,7 +365,7 @@ class _ServiceViewState extends State<ServiceView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.bannerData.title,
+                  businessName,
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -410,8 +483,33 @@ class _ServiceViewState extends State<ServiceView> {
     );
   }
 
-  Widget _buildQuickActionsSection() {
-    final actions = widget.quickActionsData;
+  Widget _buildQuickActionsSection(GashiRepository repo, int businessId) {
+    final List<_ServiceQuickActionMapping> actionMappings = [
+      if (repo.isBusinessFeatureEnabled(businessId, 'pos') && widget.quickActionsData.isNotEmpty)
+        _ServiceQuickActionMapping(
+          key: 'pos',
+          action: widget.quickActionsData[0],
+        ),
+      if (repo.isBusinessFeatureEnabled(businessId, 'services') && widget.quickActionsData.length > 1)
+        _ServiceQuickActionMapping(
+          key: 'services',
+          action: widget.quickActionsData[1],
+        ),
+      if (repo.isBusinessFeatureEnabled(businessId, 'sales') && widget.quickActionsData.length > 2)
+        _ServiceQuickActionMapping(
+          key: 'sales',
+          action: widget.quickActionsData[2],
+        ),
+      if (repo.isBusinessFeatureEnabled(businessId, 'credits') && widget.quickActionsData.length > 3)
+        _ServiceQuickActionMapping(
+          key: 'credits',
+          action: widget.quickActionsData[3],
+        ),
+    ];
+
+    if (actionMappings.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,33 +528,15 @@ class _ServiceViewState extends State<ServiceView> {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
-            itemCount: actions.length,
+            itemCount: actionMappings.length,
             separatorBuilder: (context, index) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
-              final action = actions[index];
+              final mapping = actionMappings[index];
+              final action = mapping.action;
               final isPrimary = action.isPrimary;
 
               return GestureDetector(
-                onTap: () {
-                  if (index == 0) {
-                    // "Iibi Adeeg" switches to POS tab
-                    setState(() => _currentIndex = 1);
-                  } else if (index == 1) {
-                    // "Eeg Adeegyada" opens Services Catalog
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (context) => const ServiceServicesPage(),
-                      ),
-                    );
-                  } else if (index == 2) {
-                    // "Eeg Iibka" switches to Sales tab (index 2 now next to POS)
-                    setState(() => _currentIndex = 2);
-                  } else if (index == 3) {
-                    // "Deymaha & Macaamiil" switches to Credits tab (index 3)
-                    setState(() => _currentIndex = 3);
-                  }
-                },
+                onTap: () => _navigateToKey(mapping.key),
                 child: isPrimary
                     ? Container(
                         width: 96,
@@ -704,4 +784,27 @@ class _ServiceViewState extends State<ServiceView> {
     );
   }
 }
+
+class _ServiceNavTab {
+  final String key;
+  final Widget widget;
+  final BottomNavigationBarItem navItem;
+
+  const _ServiceNavTab({
+    required this.key,
+    required this.widget,
+    required this.navItem,
+  });
+}
+
+class _ServiceQuickActionMapping {
+  final String key;
+  final ServiceQuickAction action;
+
+  const _ServiceQuickActionMapping({
+    required this.key,
+    required this.action,
+  });
+}
+
 

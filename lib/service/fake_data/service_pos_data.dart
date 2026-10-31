@@ -1,7 +1,34 @@
 import 'package:flutter/material.dart';
 
 // ============================================================================
-// SERVICE POS DATA MODELS & SAMPLE VARIABLES
+// SERVICE POS CATALOG & POSTGRESQL SCHEMA MAPPING
+// ============================================================================
+//
+// 1. DATA PURPOSE & EXPLANATION (Faahfaahinta Adeegyada POS-ka):
+//    - Defines the services offered at the service SME (labor rates, repair
+//      duration, default technician, and equipment category).
+//    - Categories include: Auto & Baabuur, Mobile & Electronics, AC & Koronto,
+//      and Tailoring / Harqaan.
+//    - Upon checkout in `ServicePosPage`, creates a new `ServiceJob` entry
+//      tracked through its lifecycle (pending -> in_progress -> completed -> delivered).
+//
+// 2. BACKEND POSTGRESQL SCHEMA EQUIVALENT:
+//    - ServiceItem maps to the `services` table:
+//        id SERIAL PRIMARY KEY,
+//        business_id INT REFERENCES businesses(id),  -- business_id = 4 (Service)
+//        name VARCHAR(255) NOT NULL,
+//        base_price NUMERIC(10, 2) NOT NULL,
+//        estimated_duration_minutes INT DEFAULT 60,
+//        category VARCHAR(100),
+//        is_active BOOLEAN DEFAULT TRUE,
+//        custom_attributes JSONB
+//    - ServiceCartItem maps to `service_jobs`:
+//        customer_name, customer_phone, device_or_car_model (referenceInfo),
+//        technician_name, total_estimated_price, notes
+//
+// 3. HOW TO MODIFY THIS DATA (Sida Adeeg Cusub Loogu Daro):
+//    - To add an offered service: Append a `ServiceItem` to `sampleServices`.
+//    - To change service rates: Edit `price` or `duration`.
 // ============================================================================
 
 class ServiceItem {

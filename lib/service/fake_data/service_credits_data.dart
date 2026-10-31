@@ -1,7 +1,27 @@
 import 'package:flutter/material.dart';
 
 // ============================================================================
-// SERVICE CREDITS / DAYN FAKE DATA & MODELS
+// SERVICE CREDITS / DAYN FAKE DATA & POSTGRESQL SCHEMA MAPPING
+// ============================================================================
+//
+// 1. DATA PURPOSE & EXPLANATION (Faahfaahinta Deymaha Adeegyada & Dayactirka):
+//    - Defines customer credit accounts specific to service and repair workshops
+//      (e.g., auto mechanics, electronics repair, AC maintenance, tailoring).
+//    - In service SME businesses, customers often pay an upfront advance deposit
+//      (horumarin) and owe the remaining balance upon device or vehicle handover.
+//
+// 2. BACKEND POSTGRESQL SCHEMA EQUIVALENT:
+//    - ServiceDebtor maps to `customers` joined with `service_jobs`:
+//        customers.id, customers.name, customers.phone, customers.current_debt,
+//        service_jobs.id (ticketId), service_jobs.service_id, service_jobs.technician_name,
+//        service_jobs.total_estimated_price, service_jobs.paid_amount, service_jobs.due_date
+//    - ServiceDebtTransaction maps to `customer_transactions`:
+//        id, customer_id, business_id = 4, amount, payment_method, transaction_type = 'payment'
+//
+// 3. HOW TO MODIFY THIS DATA (Sida Wax Looga Beddelo):
+//    - To add an unpaid job customer: Add a `ServiceDebtor` to `sampleServiceDebtors`.
+//    - In production, debts are registered directly when a `ServiceJob` is delivered
+//      with an unpaid balance (`GashiRepository.payServiceJobBalance()`).
 // ============================================================================
 
 class ServiceDebtTransaction {

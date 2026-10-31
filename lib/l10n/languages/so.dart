@@ -213,5 +213,28 @@ final Map<String, String> soTranslations = {
   'sold_at_price': 'Lagu Iibiyay',
   'discount_label': 'Dhimis',
   'camera_launch_failed': 'Kamaradda lama furi karin',
+
+  // Reminder & Credit Enhancements
+  'reminder_schedule': 'Qorshaha Xusuusinta Daynta',
+  'reminder_mode_after_days': 'Maalmo Kadib',
+  'reminder_mode_daily': 'Maalin Kasta (Laga bilaabo Maalinta 1-aad)',
+  'reminder_daily_desc': 'Xusuusin maalinle ah laga bilaabo maalinta koowaad (berrito)',
+  'reminder_after_days_desc': 'Xusuusi marka ay dhammaadaan maalmaha la doorto',
+  'reminder_presets_days': 'Maalmood',
+  'reminder_custom_days': 'Maalmo Kale',
+  'credit_due_date_calc': 'Waqtiga Bixinta',
+  'credit_overdue_warning': 'Waqtigu wuu dhaafay',
+  'credit_purchased_items': 'Alaabta La Qaatay',
+  'credit_guarantor_notes': 'Damiin & Faahfaahin',
+  'credit_payment_history': 'Taariikhda Bixinta & Iibka',
+  'credit_financial_progress': 'Xaaladda Lacag-bixinta',
+  'credit_total_debt': 'Wadarta Deynta',
+  'credit_amount_paid': 'La Bixiyay',
+  'credit_remaining_balance': 'Ku Hadhay',
+  'credit_call_customer': 'Wac Macmiilka',
+  'credit_collect_payment': 'Qaado Lacag',
+  'credit_edit_reminder': 'Wax ka beddel Xusuusinta',
+  'credit_active_debtors': 'Macaamiisha Deynta leh',
+  'credit_overdue_count': 'Deymaha Waqtigoodu Dhaafay',
 };
 

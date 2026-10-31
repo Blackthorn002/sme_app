@@ -123,8 +123,16 @@ import '../models/gashi_models.dart';
 //     business_id BIGINT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
 //     name VARCHAR(255) NOT NULL,
 //     phone VARCHAR(32),
+//     total_debt NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+//     paid_debt NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
 //     current_credit_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
-//     deposit_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00
+//     deposit_balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+//     due_date TIMESTAMP WITH TIME ZONE,
+//     reminder_mode VARCHAR(32) DEFAULT 'after_days', -- 'after_days', 'daily'
+//     reminder_days INT DEFAULT 7, -- days after which to remind or interval
+//     status VARCHAR(32) NOT NULL DEFAULT 'unpaid', -- unpaid, partial, cleared
+//     notes TEXT,
+//     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 // );
 // 
 // CREATE TABLE customer_transactions (
@@ -133,6 +141,7 @@ import '../models/gashi_models.dart';
 //     customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
 //     type VARCHAR(32) NOT NULL, -- deposit, deduction, credit_sale, repayment
 //     amount NUMERIC(12, 2) NOT NULL,
+//     payment_method VARCHAR(32) NOT NULL DEFAULT 'Cash',
 //     notes TEXT,
 //     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 // );
@@ -241,6 +250,7 @@ class GashiRepository extends ChangeNotifier {
   final List<Customer> _customers = [];
   final List<CustomerTransaction> _customerTransactions = [];
   final List<Sale> _sales = [];
+  final List<ServiceJob> _serviceJobs = [];
 
   // Toggle online/offline for testing or when device connectivity changes
   void toggleConnectivity() {
@@ -278,6 +288,32 @@ class GashiRepository extends ChangeNotifier {
       _businesses[index] = _businesses[index].copyWith(taxRate: taxRate);
       notifyListeners();
     }
+  }
+
+  void updateBusinessName(int businessId, String newName) {
+    final trimmed = newName.trim();
+    if (trimmed.isEmpty) return;
+    final index = _businesses.indexWhere((b) => b.id == businessId);
+    if (index != -1) {
+      _businesses[index] = _businesses[index].copyWith(name: trimmed);
+      notifyListeners();
+    }
+  }
+
+  void toggleBusinessFeature(int businessId, String featureKey, bool isEnabled) {
+    final index = _businesses.indexWhere((b) => b.id == businessId);
+    if (index != -1) {
+      final updatedFeatures = Map<String, bool>.from(_businesses[index].enabledFeatures);
+      updatedFeatures[featureKey] = isEnabled;
+      _businesses[index] = _businesses[index].copyWith(enabledFeatures: updatedFeatures);
+      notifyListeners();
+    }
+  }
+
+  bool isBusinessFeatureEnabled(int businessId, String featureKey) {
+    final b = getBusinessById(businessId);
+    if (b == null) return true;
+    return b.isFeatureEnabled(featureKey);
   }
 
   // --------------------------------------------------------------------------
@@ -509,7 +545,14 @@ class GashiRepository extends ChangeNotifier {
     if (customerIndex >= 0) {
       final c = _customers[customerIndex];
       final newBalance = (c.currentCreditBalance - amount).clamp(0.0, double.infinity);
-      _customers[customerIndex] = c.copyWith(currentCreditBalance: newBalance);
+      final newPaid = c.paidDebt + amount;
+      final newStatus = newBalance <= 0.001 ? 'cleared' : 'partial';
+
+      _customers[customerIndex] = c.copyWith(
+        currentCreditBalance: newBalance,
+        paidDebt: newPaid,
+        status: newStatus,
+      );
 
       _customerTransactions.insert(
         0,
@@ -532,6 +575,111 @@ class GashiRepository extends ChangeNotifier {
 
   List<CustomerTransaction> getCustomerTransactions(int customerId) {
     return _customerTransactions.where((t) => t.customerId == customerId).toList();
+  }
+
+  List<Sale> getCustomerCreditSales(int customerId) {
+    return _sales.where((s) => s.customerId == customerId && (s.paymentStatus == 'credit' || s.paymentMethod == GashiPaymentMethods.debt)).toList();
+  }
+
+  List<SaleItem> getCustomerCreditItems(int customerId) {
+    final sales = getCustomerCreditSales(customerId);
+    final items = <SaleItem>[];
+    for (final s in sales) {
+      items.addAll(s.items);
+    }
+    return items;
+  }
+
+  void updateCustomerReminder({
+    required int customerId,
+    required String reminderMode,
+    required int reminderDays,
+    DateTime? dueDate,
+  }) {
+    final idx = _customers.indexWhere((c) => c.id == customerId);
+    if (idx >= 0) {
+      final c = _customers[idx];
+      _customers[idx] = c.copyWith(
+        reminderMode: reminderMode,
+        reminderDays: reminderDays,
+        dueDate: dueDate ?? c.dueDate,
+      );
+      notifyListeners();
+    }
+  }
+
+  void updateCustomerDueDate(int customerId, DateTime newDueDate) {
+    final idx = _customers.indexWhere((c) => c.id == customerId);
+    if (idx >= 0) {
+      final c = _customers[idx];
+      _customers[idx] = c.copyWith(dueDate: newDueDate);
+      notifyListeners();
+    }
+  }
+
+  void recordCustomerReminderSent(int customerId, {String channel = 'SMS'}) {
+    final idx = _customers.indexWhere((c) => c.id == customerId);
+    if (idx >= 0) {
+      final cust = _customers[idx];
+      final currentAttrs = Map<String, dynamic>.from(cust.customAttributes);
+      final prevCount = (currentAttrs['notification_count'] as int?) ?? 0;
+      currentAttrs['notification_count'] = prevCount + 1;
+      currentAttrs['last_reminded_at'] = DateTime.now().toIso8601String();
+      currentAttrs['last_reminder_channel'] = channel;
+
+      _customers[idx] = cust.copyWith(customAttributes: currentAttrs);
+      notifyListeners();
+    }
+  }
+
+  List<Customer> getOverdueCustomers(int businessId) {
+    return _customers
+        .where((c) => c.businessId == businessId && c.isOverdue)
+        .toList();
+  }
+
+  List<Customer> getDueSoonCustomers(int businessId) {
+    return _customers
+        .where((c) => c.businessId == businessId && c.isDueSoon)
+        .toList();
+  }
+
+  // --------------------------------------------------------------------------
+  // SERVICE JOBS (PostgreSQL service_jobs Table)
+  // --------------------------------------------------------------------------
+  List<ServiceJob> getServiceJobs(int businessId) {
+    return _serviceJobs.where((j) => j.businessId == businessId).toList();
+  }
+
+  void addServiceJob(ServiceJob job) {
+    _serviceJobs.insert(0, job);
+    if (!_isOnline) _pendingSyncCount++;
+    notifyListeners();
+  }
+
+  void updateServiceJobStatus(int jobId, String newStatus) {
+    final index = _serviceJobs.indexWhere((j) => j.id == jobId);
+    if (index >= 0) {
+      _serviceJobs[index] = _serviceJobs[index].copyWith(status: newStatus);
+      if (!_isOnline) _pendingSyncCount++;
+      notifyListeners();
+    }
+  }
+
+  void payServiceJobBalance(int jobId, double amountPaid) {
+    final index = _serviceJobs.indexWhere((j) => j.id == jobId);
+    if (index >= 0) {
+      final job = _serviceJobs[index];
+      final newDeposit = job.depositPaid + amountPaid;
+      final newBalance = (job.totalAmount - newDeposit).clamp(0.0, double.infinity);
+      _serviceJobs[index] = job.copyWith(
+        depositPaid: newDeposit,
+        balanceDue: newBalance,
+        status: newBalance <= 0.001 ? 'completed' : job.status,
+      );
+      if (!_isOnline) _pendingSyncCount++;
+      notifyListeners();
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -600,8 +748,30 @@ class GashiRepository extends ChangeNotifier {
       final customerIdx = _customers.indexWhere((c) => c.id == customerId);
       if (customerIdx >= 0) {
         final c = _customers[customerIdx];
+        final newTotal = c.totalDebt + remainingDebt;
+        final newBalance = c.currentCreditBalance + remainingDebt;
+
+        DateTime? newDueDate = c.dueDate;
+        if (customAttributes.containsKey('due_date') && customAttributes['due_date'] != null) {
+          if (customAttributes['due_date'] is DateTime) {
+            newDueDate = customAttributes['due_date'] as DateTime;
+          } else if (customAttributes['due_date'] is String) {
+            newDueDate = DateTime.tryParse(customAttributes['due_date'] as String);
+          }
+        }
+
+        final reminderMode = customAttributes['reminder_mode'] as String? ?? c.reminderMode;
+        final reminderDays = customAttributes['reminder_days'] as int? ?? c.reminderDays;
+        final debtNotes = customAttributes['debtor_notes'] as String? ?? '';
+
         _customers[customerIdx] = c.copyWith(
-          currentCreditBalance: c.currentCreditBalance + remainingDebt,
+          totalDebt: newTotal,
+          currentCreditBalance: newBalance,
+          dueDate: newDueDate,
+          reminderMode: reminderMode,
+          reminderDays: reminderDays,
+          status: newBalance <= 0 ? 'cleared' : (c.paidDebt > 0 ? 'partial' : 'unpaid'),
+          notes: debtNotes.isNotEmpty ? debtNotes : c.notes,
         );
 
         _customerTransactions.insert(
@@ -612,7 +782,7 @@ class GashiRepository extends ChangeNotifier {
             customerId: customerId,
             type: 'credit_sale',
             amount: remainingDebt,
-            notes: 'Iibka #${saleId.toString().substring(saleId.toString().length - 4)}',
+            notes: 'Iibka #${saleId.toString().length >= 4 ? saleId.toString().substring(saleId.toString().length - 4) : saleId}',
             paymentMethod: paymentMethod,
             createdAt: DateTime.now(),
           ),
@@ -960,31 +1130,151 @@ class GashiRepository extends ChangeNotifier {
       ),
     ]);
 
-    // 4. Customers & Credits
+    // 4. Customers & Credits (Full Production PostgreSQL Schema)
     _customers.addAll([
-      const Customer(
+      Customer(
         id: 1,
-        businessId: 1,
+        businessId: 2,
         name: 'Axmed Maxamed Nuur',
         phone: '+252 63 4411223',
+        totalDebt: 65.0,
+        paidDebt: 20.0,
         currentCreditBalance: 45.0,
         depositBalance: 0.0,
+        dueDate: now.add(const Duration(days: 3)),
+        reminderMode: 'after_days',
+        reminderDays: 7,
+        status: 'partial',
+        notes: 'Dhar ciid iyo kabo rag - Damiin: Cabdi Xasan',
+        createdAt: now.subtract(const Duration(days: 4)),
       ),
-      const Customer(
+      Customer(
         id: 2,
-        businessId: 1,
+        businessId: 2,
         name: 'Safiya Cabdi Xasan',
         phone: '+252 63 7788990',
+        totalDebt: 110.0,
+        paidDebt: 0.0,
         currentCreditBalance: 110.0,
         depositBalance: 0.0,
+        dueDate: now.add(const Duration(days: 5)),
+        reminderMode: 'daily',
+        reminderDays: 1,
+        status: 'unpaid',
+        notes: 'Diracyo iyo uunsi aroos',
+        createdAt: now.subtract(const Duration(days: 2)),
       ),
-      const Customer(
+      Customer(
         id: 3,
         businessId: 2,
         name: 'Khadar Cismaan Cali',
         phone: '+252 65 9911224',
+        totalDebt: 35.0,
+        paidDebt: 0.0,
         currentCreditBalance: 35.0,
         depositBalance: 0.0,
+        dueDate: now.subtract(const Duration(days: 1)),
+        reminderMode: 'after_days',
+        reminderDays: 3,
+        status: 'unpaid',
+        notes: 'Surwaal iyo dhar shaqo',
+        createdAt: now.subtract(const Duration(days: 4)),
+      ),
+      Customer(
+        id: 4,
+        businessId: 2,
+        name: 'Sahra Maxamuud Jaamac',
+        phone: '+252 63 4499881',
+        totalDebt: 50.0,
+        paidDebt: 50.0,
+        currentCreditBalance: 0.0,
+        depositBalance: 0.0,
+        dueDate: now.subtract(const Duration(days: 2)),
+        reminderMode: 'after_days',
+        reminderDays: 7,
+        status: 'cleared',
+        notes: 'Lacagteedii way dhammaystirtay',
+        createdAt: now.subtract(const Duration(days: 10)),
+      ),
+      Customer(
+        id: 5,
+        businessId: 1,
+        name: 'Cali Xasan Daahir',
+        phone: '+252 63 4123456',
+        totalDebt: 25.0,
+        paidDebt: 0.0,
+        currentCreditBalance: 25.0,
+        depositBalance: 0.0,
+        dueDate: now.add(const Duration(days: 4)),
+        reminderMode: 'after_days',
+        reminderDays: 5,
+        status: 'unpaid',
+        notes: 'Dawooyinka sonkorta',
+        createdAt: now.subtract(const Duration(days: 1)),
+      ),
+    ]);
+
+    // 4.5 Customer Transactions Ledger (PostgreSQL customer_transactions)
+    _customerTransactions.addAll([
+      CustomerTransaction(
+        id: 3001,
+        businessId: 2,
+        customerId: 1,
+        type: 'credit_sale',
+        amount: 65.0,
+        notes: 'Iibka POS #8821 (Shaadh & Surwaal)',
+        paymentMethod: 'Deyn',
+        createdAt: now.subtract(const Duration(days: 4)),
+      ),
+      CustomerTransaction(
+        id: 3002,
+        businessId: 2,
+        customerId: 1,
+        type: 'repayment',
+        amount: 20.0,
+        notes: 'Qayb horumaris ah via Zaad',
+        paymentMethod: 'Zaad',
+        createdAt: now.subtract(const Duration(days: 2)),
+      ),
+      CustomerTransaction(
+        id: 3003,
+        businessId: 2,
+        customerId: 2,
+        type: 'credit_sale',
+        amount: 110.0,
+        notes: 'Iibka POS #8815 (Diracyo & Garbasaar)',
+        paymentMethod: 'Deyn',
+        createdAt: now.subtract(const Duration(days: 2)),
+      ),
+      CustomerTransaction(
+        id: 3004,
+        businessId: 2,
+        customerId: 3,
+        type: 'credit_sale',
+        amount: 35.0,
+        notes: 'Iibka POS #8790 (Surwaal Jeans & Shaadh)',
+        paymentMethod: 'Deyn',
+        createdAt: now.subtract(const Duration(days: 4)),
+      ),
+      CustomerTransaction(
+        id: 3005,
+        businessId: 2,
+        customerId: 4,
+        type: 'credit_sale',
+        amount: 50.0,
+        notes: 'Iibka POS #8720 (Dhar Ciid)',
+        paymentMethod: 'Deyn',
+        createdAt: now.subtract(const Duration(days: 10)),
+      ),
+      CustomerTransaction(
+        id: 3006,
+        businessId: 2,
+        customerId: 4,
+        type: 'repayment',
+        amount: 50.0,
+        notes: 'Bixinta dhammaan deynta via e-Dahab',
+        paymentMethod: 'e-Dahab',
+        createdAt: now.subtract(const Duration(days: 2)),
       ),
     ]);
 
@@ -1130,6 +1420,49 @@ class GashiRepository extends ChangeNotifier {
 
       // --- Retail Sales (businessId: 2) ---
       Sale(
+        id: 8821,
+        businessId: 2,
+        customerId: 1,
+        customerName: 'Axmed Maxamed Nuur',
+        orderType: 'standard',
+        totalAmount: 65.00,
+        paidAmount: 20.00,
+        paymentStatus: 'credit',
+        paymentMethod: 'Dayn',
+        customAttributes: const {
+          'reminder_mode': 'after_days',
+          'reminder_days': 7,
+          'debtor_notes': 'Dhar ciid iyo kabo rag',
+        },
+        items: const [
+          SaleItem(id: 88211, saleId: 8821, productId: 11, productName: 'Shaadh Cudbi ah (Cotton Shirt)', quantity: 2, unitPrice: 12.00, total: 24.00),
+          SaleItem(id: 88212, saleId: 8821, productId: 12, productName: 'Surwaal Jeans Classic', quantity: 2, unitPrice: 13.00, total: 26.00),
+          SaleItem(id: 88213, saleId: 8821, productId: 15, productName: 'Koofiyad / Boorso Maqaar ah', quantity: 1, unitPrice: 15.00, total: 15.00),
+        ],
+        createdAt: now.subtract(const Duration(days: 4)),
+      ),
+      Sale(
+        id: 8815,
+        businessId: 2,
+        customerId: 2,
+        customerName: 'Safiya Cabdi Xasan',
+        orderType: 'standard',
+        totalAmount: 110.00,
+        paidAmount: 0.00,
+        paymentStatus: 'credit',
+        paymentMethod: 'Dayn',
+        customAttributes: const {
+          'reminder_mode': 'daily',
+          'reminder_days': 1,
+          'debtor_notes': 'Diracyo iyo uunsi aroos',
+        },
+        items: const [
+          SaleItem(id: 88151, saleId: 8815, productId: 14, productName: 'Coodh / Suudh Dhamaystiran', quantity: 2, unitPrice: 45.00, total: 90.00),
+          SaleItem(id: 88152, saleId: 8815, productId: 15, productName: 'Koofiyad / Boorso Maqaar ah', quantity: 1, unitPrice: 20.00, total: 20.00),
+        ],
+        createdAt: now.subtract(const Duration(days: 2)),
+      ),
+      Sale(
         id: 2001,
         businessId: 2,
         customerName: 'Xasan Cabdilaahi',
@@ -1161,16 +1494,23 @@ class GashiRepository extends ChangeNotifier {
       Sale(
         id: 2003,
         businessId: 2,
+        customerId: 3,
         customerName: 'Khadar Cismaan Cali',
         orderType: 'standard',
-        totalAmount: 18.00,
+        totalAmount: 35.00,
         paidAmount: 0.0,
         paymentStatus: 'credit',
         paymentMethod: 'Dayn',
+        customAttributes: const {
+          'reminder_mode': 'after_days',
+          'reminder_days': 3,
+          'debtor_notes': 'Surwaal iyo dhar shaqo',
+        },
         items: const [
           SaleItem(id: 204, saleId: 2003, productId: 12, productName: 'Surwaal Jeans Classic', quantity: 1, unitPrice: 18.00, total: 18.00),
+          SaleItem(id: 2041, saleId: 2003, productId: 15, productName: 'Koofiyad / Boorso Maqaar ah', quantity: 1, unitPrice: 17.00, total: 17.00),
         ],
-        createdAt: now.subtract(const Duration(days: 3, hours: 2)),
+        createdAt: now.subtract(const Duration(days: 4, hours: 2)),
       ),
       Sale(
         id: 2004,
@@ -1320,6 +1660,99 @@ class GashiRepository extends ChangeNotifier {
           SaleItem(id: 12, saleId: 2044, productId: null, productName: 'Shaah', quantity: 2, unitPrice: 1.00, total: 2.00),
         ],
         createdAt: now.subtract(const Duration(days: 15)),
+      ),
+    ]);
+
+    // 8. Service Jobs (PostgreSQL service_jobs Table - Business ID: 4)
+    _serviceJobs.addAll([
+      ServiceJob(
+        id: 701,
+        businessId: 4,
+        customerId: 1,
+        customerName: 'Axmed Cali Nuur',
+        customerPhone: '+252 63 4112233',
+        serviceId: 1,
+        serviceName: 'Dhaqista Baabuurka (Full Wash)',
+        assignedStaff: 'Cabdi & Kooxda',
+        status: 'in_progress',
+        totalAmount: 15.00,
+        depositPaid: 10.00,
+        balanceDue: 5.00,
+        referenceInfo: 'Taargo: SL-A 4592 (Prado TX)',
+        notes: 'Gudaha iyo dibadda, wax & polish buuxa',
+        createdAt: now.subtract(const Duration(hours: 2)),
+        estimatedCompletion: now.add(const Duration(minutes: 45)),
+      ),
+      ServiceJob(
+        id: 702,
+        businessId: 4,
+        customerId: 2,
+        customerName: 'Nimco Jaamac Warsame',
+        customerPhone: '+252 63 4223344',
+        serviceId: 2,
+        serviceName: 'Beddelka Shaashad iPhone 13 Pro',
+        assignedStaff: 'Eng. Xamze',
+        status: 'completed',
+        totalAmount: 65.00,
+        depositPaid: 65.00,
+        balanceDue: 0.00,
+        referenceInfo: 'iPhone 13 Pro (Graphite 128GB)',
+        notes: 'Shaashad Original OLED ah oo 3 bilood damaanad leh',
+        createdAt: now.subtract(const Duration(hours: 4)),
+        estimatedCompletion: now.subtract(const Duration(minutes: 30)),
+      ),
+      ServiceJob(
+        id: 703,
+        businessId: 4,
+        customerId: 3,
+        customerName: 'Cabdiweli Xuseen Cali',
+        customerPhone: '+252 63 4334455',
+        serviceId: 3,
+        serviceName: 'Beddelka Saliidda & Filter-ka Gaadhiga',
+        assignedStaff: 'Mustafe Farsamo',
+        status: 'pending',
+        totalAmount: 35.00,
+        depositPaid: 15.00,
+        balanceDue: 20.00,
+        referenceInfo: 'Toyota Hilux 2021 (SL-B 1088)',
+        notes: 'Saliid Total Rubia 15W40 + Oil Filter Original',
+        createdAt: now.subtract(const Duration(hours: 1)),
+        estimatedCompletion: now.add(const Duration(hours: 1, minutes: 30)),
+      ),
+      ServiceJob(
+        id: 704,
+        businessId: 4,
+        customerId: 4,
+        customerName: 'Mustafe Cali Maxamuud',
+        customerPhone: '+252 63 4556677',
+        serviceId: 4,
+        serviceName: 'Dhar Tolasho (Khamiis Casri ah)',
+        assignedStaff: 'Ustaad Maxamed',
+        status: 'in_progress',
+        totalAmount: 30.00,
+        depositPaid: 15.00,
+        balanceDue: 15.00,
+        referenceInfo: 'Cabbir: 58-L • Midab: Cadaan',
+        notes: 'Tolasho laba jeer tolmo leh, gacmo badhan leh',
+        createdAt: now.subtract(const Duration(days: 1)),
+        estimatedCompletion: now.add(const Duration(days: 1)),
+      ),
+      ServiceJob(
+        id: 705,
+        businessId: 4,
+        customerId: 5,
+        customerName: 'Xasan Maxamed Cumar',
+        customerPhone: '+252 63 4667788',
+        serviceId: 5,
+        serviceName: 'Tima-jaryo & Xiirasho VIP',
+        assignedStaff: 'Barber Cali',
+        status: 'delivered',
+        totalAmount: 12.00,
+        depositPaid: 12.00,
+        balanceDue: 0.00,
+        referenceInfo: 'VIP Grooming Lounge',
+        notes: 'Timo-jarid, makiinad, facial scrub iyo uumi nadiifin',
+        createdAt: now.subtract(const Duration(days: 2)),
       ),
     ]);
   }

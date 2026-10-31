@@ -1,7 +1,25 @@
 import 'package:flutter/material.dart';
 
 // ============================================================================
-// RESTAURANT DASHBOARD DATA MODELS & SAMPLE VARIABLES
+// RESTAURANT DASHBOARD DATA & POSTGRESQL SCHEMA MAPPING
+// ============================================================================
+//
+// 1. DATA PURPOSE & EXPLANATION (Faahfaahinta Shaashadda Guud ee Makhaayadda):
+//    - Defines summary metrics, quick actions, and recent live table orders for restaurants.
+//    - Real-time restaurant monitoring: Today's food revenue, active occupied tables,
+//      completed orders count, and catering / corporate customer debt tabs.
+//
+// 2. BACKEND POSTGRESQL SCHEMA EQUIVALENT:
+//    - RestaurantHeaderData -> `businesses` table (business_type = 'restaurant', business_id = 3)
+//    - RestaurantMetricItem -> Aggregations from `sales` table:
+//        SELECT SUM(total_amount) FROM sales WHERE business_id = 3 AND created_at >= CURRENT_DATE;
+//        SELECT COUNT(id) FROM sales WHERE business_id = 3 AND order_type = 'Miis' AND payment_status != 'paid';
+//    - RestaurantOrderItem -> `sales` table with `order_type` ('Miis' / Dine-in, 'Takeaway', 'Delivery')
+//        custom_attributes->>'table' (e.g., "Miiska 4")
+//
+// 3. HOW TO MODIFY THIS DATA (Sida Wax Looga Beddelo):
+//    - Update `sampleRestaurantMetrics` to modify top dashboard KPI cards.
+//    - Update `sampleRestaurantOrders` to test different table numbers or statuses.
 // ============================================================================
 
 class RestaurantHeaderData {

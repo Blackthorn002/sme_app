@@ -1,7 +1,41 @@
 import 'package:flutter/material.dart';
 
 // ============================================================================
-// RETAIL CREDITS / DAYN FAKE DATA & MODELS
+// RETAIL CREDITS / DAYN FAKE DATA & POSTGRESQL SCHEMA MAPPING
+// ============================================================================
+//
+// 1. DATA PURPOSE & EXPLANATION (Faahfaahinta Xogta Deymaha Dukaanka):
+//    - This file defines mock customer debt accounts (Gashiga Macaamiisha)
+//      for retail businesses (clothing, electronics, general merchandise).
+//    - Each debtor represents a customer who purchased retail items on credit
+//      with a repayment due date and partial payment installments.
+//
+// 2. BACKEND POSTGRESQL SCHEMA EQUIVALENT:
+//    - RetailDebtor maps to the `customers` table:
+//        id SERIAL PRIMARY KEY,
+//        business_id INT REFERENCES businesses(id),
+//        name VARCHAR(255) NOT NULL,
+//        phone VARCHAR(50) NOT NULL,
+//        credit_limit NUMERIC(10, 2) DEFAULT 0.00,
+//        current_debt NUMERIC(10, 2) DEFAULT 0.00,
+//        due_date DATE,
+//        custom_attributes JSONB
+//    - RetailDebtTransaction maps to the `customer_transactions` table:
+//        id SERIAL PRIMARY KEY,
+//        customer_id INT REFERENCES customers(id),
+//        business_id INT REFERENCES businesses(id),
+//        transaction_type VARCHAR(20) NOT NULL, -- 'charge' (qaatay) or 'payment' (bixiyay)
+//        amount NUMERIC(10, 2) NOT NULL,
+//        payment_method VARCHAR(50),            -- 'Zaad', 'e-Dahab', 'Kaash'
+//        notes TEXT,
+//        created_at TIMESTAMPTZ DEFAULT NOW()
+//
+// 3. HOW TO MODIFY THIS DATA (Sida Xogta Wax Looga Beddelo):
+//    - To add a new debtor: Add a new `RetailDebtor` object to `sampleRetailDebtors`.
+//    - To change due dates: Update `dueDate: '05 Nov 2026'` (format: 'DD MMM YYYY').
+//    - To log new payments: Append a `RetailDebtTransaction` inside `paymentHistory`.
+//    - In production, these records are synced via `GashiRepository.getCustomers()`
+//      and `GashiRepository.recordCustomerPayment()`.
 // ============================================================================
 
 class RetailDebtTransaction {

@@ -5,6 +5,8 @@ import '../general_features/pages/general_inventory_page.dart';
 import '../general_features/pages/general_credits_page.dart';
 import '../general_features/pages/general_settings_page.dart';
 import '../general_features/pages/general_sales_page.dart';
+import '../general_features/repository/gashi_repository.dart';
+import '../general_features/services/currency_service.dart';
 import 'fake_data/retail_dashboard_data.dart';
 
 // ============================================================================
@@ -43,72 +45,134 @@ class _RetailViewState extends State<RetailView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFC),
-      body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _buildDashboardPage(),
-            const GeneralPosPage(
+    return AnimatedBuilder(
+      animation: Listenable.merge([GashiRepository.instance, CurrencyService.instance]),
+      builder: (context, _) {
+        final repo = GashiRepository.instance;
+        final business = repo.getBusinessByType(BusinessType.retail);
+        final businessId = business?.id ?? 2;
+        final businessName = business?.name ?? widget.headerData.appName;
+
+        final List<_RetailNavTab> availableTabs = [
+          _RetailNavTab(
+            key: 'home',
+            widget: _buildDashboardPage(businessName, repo, businessId),
+            navItem: const BottomNavigationBarItem(
+              icon: Icon(Icons.home_filled),
+              label: 'Home',
+            ),
+          ),
+          if (repo.isBusinessFeatureEnabled(businessId, 'pos'))
+            const _RetailNavTab(
+              key: 'pos',
+              widget: GeneralPosPage(
+                businessId: 2,
+                businessType: BusinessType.retail,
+              ),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.point_of_sale),
+                label: 'POS',
+              ),
+            ),
+          if (repo.isBusinessFeatureEnabled(businessId, 'sales'))
+            const _RetailNavTab(
+              key: 'sales',
+              widget: GeneralSalesPage(
+                businessId: 2,
+                businessType: BusinessType.retail,
+              ),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.receipt_long_outlined),
+                label: 'Sales',
+              ),
+            ),
+          if (repo.isBusinessFeatureEnabled(businessId, 'inventory'))
+            const _RetailNavTab(
+              key: 'inventory',
+              widget: GeneralInventoryPage(
+                businessId: 2,
+                businessType: BusinessType.retail,
+              ),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.inventory_2_outlined),
+                label: 'Kaydka',
+              ),
+            ),
+          if (repo.isBusinessFeatureEnabled(businessId, 'credits'))
+            const _RetailNavTab(
+              key: 'credits',
+              widget: GeneralCreditsPage(
+                businessId: 2,
+                businessType: BusinessType.retail,
+              ),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.people_outline),
+                label: 'Credits',
+              ),
+            ),
+          const _RetailNavTab(
+            key: 'settings',
+            widget: GeneralSettingsPage(
               businessId: 2,
               businessType: BusinessType.retail,
             ),
-            const GeneralInventoryPage(
-              businessId: 2,
-              businessType: BusinessType.retail,
+            navItem: BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              label: 'Settings',
             ),
-            const GeneralCreditsPage(
-              businessId: 2,
-              businessType: BusinessType.retail,
+          ),
+        ];
+
+        final safeIndex = _currentIndex.clamp(0, availableTabs.length - 1);
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF9FAFC),
+          body: SafeArea(
+            child: IndexedStack(
+              index: safeIndex,
+              children: availableTabs.map((t) => t.widget).toList(),
             ),
-            const GeneralSettingsPage(
-              businessId: 2,
-              businessType: BusinessType.retail,
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFF10B981), // Green Theme
-        unselectedItemColor: const Color(0xFF9CA3AF),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Home',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.point_of_sale),
-            label: 'POS',
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: safeIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: const Color(0xFF10B981), // Green Theme
+            unselectedItemColor: const Color(0xFF9CA3AF),
+            selectedFontSize: 11,
+            unselectedFontSize: 11,
+            items: availableTabs.map((t) => t.navItem).toList(),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.inventory_2_outlined),
-            label: 'Kaydka',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'Credits',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            label: 'More',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildDashboardPage() {
+  void _navigateToKey(String key) {
+    final repo = GashiRepository.instance;
+    final businessId = repo.getBusinessByType(BusinessType.retail)?.id ?? 2;
+    final List<String> activeKeys = [
+      'home',
+      if (repo.isBusinessFeatureEnabled(businessId, 'pos')) 'pos',
+      if (repo.isBusinessFeatureEnabled(businessId, 'sales')) 'sales',
+      if (repo.isBusinessFeatureEnabled(businessId, 'inventory')) 'inventory',
+      if (repo.isBusinessFeatureEnabled(businessId, 'credits')) 'credits',
+      'settings',
+    ];
+    final idx = activeKeys.indexOf(key);
+    if (idx != -1) {
+      setState(() => _currentIndex = idx);
+    }
+  }
+
+  Widget _buildDashboardPage(String businessName, GashiRepository repo, int businessId) {
+    final showMetrics = repo.isBusinessFeatureEnabled(businessId, 'metrics');
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -116,19 +180,21 @@ class _RetailViewState extends State<RetailView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header Section
-          _buildTopHeader(),
+          _buildTopHeader(businessName),
           const SizedBox(height: 16),
 
           // Green Hero Banner Card
-          _buildHeroBanner(),
+          _buildHeroBanner(businessName),
           const SizedBox(height: 16),
 
           // 2x2 Metric Cards Grid
-          _buildMetricsGrid(),
-          const SizedBox(height: 20),
+          if (showMetrics) ...[
+            _buildMetricsGrid(),
+            const SizedBox(height: 20),
+          ],
 
           // Quick Actions Section ("Degdegsiimo")
-          _buildQuickActionsSection(),
+          _buildQuickActionsSection(repo, businessId),
           const SizedBox(height: 20),
 
           // Recent Orders Section ("Dalabadki u dambeyay")
@@ -139,7 +205,7 @@ class _RetailViewState extends State<RetailView> {
     );
   }
 
-  Widget _buildTopHeader() {
+  Widget _buildTopHeader(String businessName) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -168,7 +234,7 @@ class _RetailViewState extends State<RetailView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.headerData.appName,
+                  businessName,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -278,7 +344,7 @@ class _RetailViewState extends State<RetailView> {
     );
   }
 
-  Widget _buildHeroBanner() {
+  Widget _buildHeroBanner(String businessName) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
@@ -304,7 +370,7 @@ class _RetailViewState extends State<RetailView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.bannerData.title,
+                  businessName,
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -449,8 +515,28 @@ class _RetailViewState extends State<RetailView> {
     );
   }
 
-  Widget _buildQuickActionsSection() {
-    final actions = widget.quickActionsData;
+  Widget _buildQuickActionsSection(GashiRepository repo, int businessId) {
+    final List<_RetailQuickActionMapping> actionMappings = [
+      if (repo.isBusinessFeatureEnabled(businessId, 'pos') && widget.quickActionsData.isNotEmpty)
+        _RetailQuickActionMapping(
+          key: 'pos',
+          action: widget.quickActionsData[0],
+        ),
+      if (repo.isBusinessFeatureEnabled(businessId, 'inventory') && widget.quickActionsData.length > 1)
+        _RetailQuickActionMapping(
+          key: 'inventory',
+          action: widget.quickActionsData[1],
+        ),
+      if (repo.isBusinessFeatureEnabled(businessId, 'credits') && widget.quickActionsData.length > 2)
+        _RetailQuickActionMapping(
+          key: 'credits',
+          action: widget.quickActionsData[2],
+        ),
+    ];
+
+    if (actionMappings.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -469,31 +555,15 @@ class _RetailViewState extends State<RetailView> {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
-            itemCount: actions.length,
+            itemCount: actionMappings.length,
             separatorBuilder: (context, index) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
-              final action = actions[index];
+              final mapping = actionMappings[index];
+              final action = mapping.action;
               final isPrimary = action.isPrimary;
 
               return GestureDetector(
-                onTap: () {
-                  if (index == 0) {
-                    // "Iibi Alaab" switches to POS tab
-                    setState(() {
-                      _currentIndex = 1;
-                    });
-                  } else if (index == 1) {
-                    // "Eeg kaydka" switches to Inventory tab
-                    setState(() {
-                      _currentIndex = 2;
-                    });
-                  } else if (index == 2) {
-                    // "Macaamiisha" switches to Credits tab
-                    setState(() {
-                      _currentIndex = 3;
-                    });
-                  }
-                },
+                onTap: () => _navigateToKey(mapping.key),
                 child: isPrimary
                     ? Container(
                         width: 96,
@@ -766,3 +836,26 @@ class _RetailViewState extends State<RetailView> {
     );
   }
 }
+
+class _RetailNavTab {
+  final String key;
+  final Widget widget;
+  final BottomNavigationBarItem navItem;
+
+  const _RetailNavTab({
+    required this.key,
+    required this.widget,
+    required this.navItem,
+  });
+}
+
+class _RetailQuickActionMapping {
+  final String key;
+  final RetailQuickAction action;
+
+  const _RetailQuickActionMapping({
+    required this.key,
+    required this.action,
+  });
+}
+

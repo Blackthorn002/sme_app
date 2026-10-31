@@ -742,6 +742,12 @@ class _GeneralPosPageState extends State<GeneralPosPage> {
     final newDebtorPhoneCtrl = TextEditingController();
     final newDebtorNotesCtrl = TextEditingController();
 
+    // Reminder Schedule State (After X Days vs Daily from 1st day onward)
+    String reminderMode = 'after_days'; // 'after_days' | 'daily'
+    int reminderDays = 7;
+    final customDaysCtrl = TextEditingController(text: '7');
+    DateTime calculatedDueDate = DateTime.now().add(const Duration(days: 7));
+
     // Default existing debtor if any
     final existingDebtors =
         GashiRepository.instance.getCustomers(widget.businessId);
@@ -1414,6 +1420,252 @@ class _GeneralPosPageState extends State<GeneralPosPage> {
                                 ),
                               ),
                             ],
+
+                            // ----------------------------------------------------
+                            // CREDIT REMINDER SCHEDULE (After X Days vs Daily from 1st day)
+                            // ----------------------------------------------------
+                            const SizedBox(height: 14),
+                            const Divider(height: 1, color: Color(0xFFFECACA)),
+                            const SizedBox(height: 12),
+
+                            Row(
+                              children: [
+                                const Icon(Icons.notifications_active_outlined,
+                                    color: Color(0xFFEF4444), size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  context.tr('reminder_schedule'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: Color(0xFF991B1B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Dooro muddada ama jadwalka xusuusinta dayntan:',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+
+                            // Reminder Mode Choice: After X Days vs Daily from Day 1
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setSheetState(() {
+                                        reminderMode = 'after_days';
+                                        calculatedDueDate = DateTime.now().add(Duration(days: reminderDays));
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                                      decoration: BoxDecoration(
+                                        color: reminderMode == 'after_days' ? const Color(0xFFEF4444) : Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: reminderMode == 'after_days' ? const Color(0xFFEF4444) : const Color(0xFFE5E7EB),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Icon(
+                                            Icons.date_range,
+                                            size: 20,
+                                            color: reminderMode == 'after_days' ? Colors.white : const Color(0xFF4B5563),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            context.tr('reminder_mode_after_days'),
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: reminderMode == 'after_days' ? Colors.white : const Color(0xFF1D2338),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      setSheetState(() {
+                                        reminderMode = 'daily';
+                                        reminderDays = 1;
+                                        calculatedDueDate = DateTime.now().add(const Duration(days: 1));
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                                      decoration: BoxDecoration(
+                                        color: reminderMode == 'daily' ? const Color(0xFFEF4444) : Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: reminderMode == 'daily' ? const Color(0xFFEF4444) : const Color(0xFFE5E7EB),
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        children: [
+                                          Icon(
+                                            Icons.repeat,
+                                            size: 20,
+                                            color: reminderMode == 'daily' ? Colors.white : const Color(0xFF4B5563),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            context.tr('reminder_mode_daily'),
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: reminderMode == 'daily' ? Colors.white : const Color(0xFF1D2338),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+
+                            // If "after_days": Show Preset Day Chips (1, 3, 7, 14, 30, or Custom)
+                            if (reminderMode == 'after_days') ...[
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [1, 3, 7, 14, 30].map((d) {
+                                  final isSel = reminderDays == d;
+                                  return ChoiceChip(
+                                    label: Text('$d ${context.tr('reminder_presets_days')}'),
+                                    selected: isSel,
+                                    selectedColor: const Color(0xFFEF4444),
+                                    labelStyle: TextStyle(
+                                      color: isSel ? Colors.white : const Color(0xFF374151),
+                                      fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                                      fontSize: 11,
+                                    ),
+                                    onSelected: (val) {
+                                      if (val) {
+                                        setSheetState(() {
+                                          reminderDays = d;
+                                          customDaysCtrl.text = d.toString();
+                                          calculatedDueDate = DateTime.now().add(Duration(days: d));
+                                        });
+                                      }
+                                    },
+                                    showCheckmark: false,
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: customDaysCtrl,
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        labelText: context.tr('reminder_custom_days'),
+                                        labelStyle: const TextStyle(fontSize: 11),
+                                        suffixText: context.tr('reminder_presets_days'),
+                                        filled: true,
+                                        fillColor: Colors.white,
+                                        isDense: true,
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      onChanged: (val) {
+                                        final parsed = int.tryParse(val);
+                                        if (parsed != null && parsed > 0) {
+                                          setSheetState(() {
+                                            reminderDays = parsed;
+                                            calculatedDueDate = DateTime.now().add(Duration(days: parsed));
+                                          });
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    tooltip: 'Dooro Taariikh (Pick Date)',
+                                    icon: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                                      ),
+                                      child: const Icon(Icons.calendar_month, color: Color(0xFFEF4444), size: 20),
+                                    ),
+                                    onPressed: () async {
+                                      final picked = await showDatePicker(
+                                        context: ctx,
+                                        initialDate: calculatedDueDate,
+                                        firstDate: DateTime.now(),
+                                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                                      );
+                                      if (picked != null) {
+                                        final daysDiff = picked.difference(DateTime.now()).inDays + 1;
+                                        setSheetState(() {
+                                          calculatedDueDate = picked;
+                                          reminderDays = daysDiff > 0 ? daysDiff : 1;
+                                          customDaysCtrl.text = reminderDays.toString();
+                                        });
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+
+                            // Feedback / Information Box about the selected reminder
+                            const SizedBox(height: 8),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFFFECACA)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    reminderMode == 'daily' ? Icons.info_outline : Icons.event_available,
+                                    size: 16,
+                                    color: const Color(0xFFDC2626),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      reminderMode == 'daily'
+                                          ? 'Xusuusin maalin kasta laga bilaabo berrito (${DateTime.now().add(const Duration(days: 1)).day}/${DateTime.now().add(const Duration(days: 1)).month}/${DateTime.now().add(const Duration(days: 1)).year}) ilaa laga bixiyo.'
+                                          : 'Waqtiga Bixinta: ${calculatedDueDate.day}/${calculatedDueDate.month}/${calculatedDueDate.year} ($reminderDays maalmood kadib)',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF991B1B),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1743,7 +1995,15 @@ class _GeneralPosPageState extends State<GeneralPosPage> {
                                   businessId: widget.businessId,
                                   name: enteredName,
                                   phone: newDebtorPhoneCtrl.text.trim(),
+                                  totalDebt: 0.0,
+                                  paidDebt: 0.0,
                                   currentCreditBalance: 0.0,
+                                  dueDate: calculatedDueDate,
+                                  reminderMode: reminderMode,
+                                  reminderDays: reminderDays,
+                                  status: 'unpaid',
+                                  notes: newDebtorNotesCtrl.text.trim(),
+                                  createdAt: DateTime.now(),
                                 ),
                               );
                               finalCustomerId = newCustomer.id;
@@ -1753,6 +2013,12 @@ class _GeneralPosPageState extends State<GeneralPosPage> {
                                 finalCustomerId = selectedExistingDebtor!.id;
                                 finalCustomerName =
                                     selectedExistingDebtor!.name;
+                                GashiRepository.instance.updateCustomerReminder(
+                                  customerId: finalCustomerId,
+                                  reminderMode: reminderMode,
+                                  reminderDays: reminderDays,
+                                  dueDate: calculatedDueDate,
+                                );
                               }
                             }
                           }
@@ -1794,6 +2060,14 @@ class _GeneralPosPageState extends State<GeneralPosPage> {
                               'order_id': orderId,
                               if (totalDiscount != 0.0)
                                 'negotiated_discount': totalDiscount,
+                              if (isDebtMode) ...{
+                                'reminder_mode': reminderMode,
+                                'reminder_days': reminderDays,
+                                'due_date': calculatedDueDate.toIso8601String(),
+                                'debtor_notes': isNewDebtor
+                                    ? newDebtorNotesCtrl.text.trim()
+                                    : (selectedExistingDebtor?.notes ?? ''),
+                              },
                             },
                             items: saleItems,
                           );

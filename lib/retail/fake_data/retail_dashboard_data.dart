@@ -1,7 +1,27 @@
 import 'package:flutter/material.dart';
 
 // ============================================================================
-// RETAIL DASHBOARD DATA MODELS & SAMPLE VARIABLES
+// RETAIL DASHBOARD DATA & POSTGRESQL SCHEMA MAPPING
+// ============================================================================
+//
+// 1. DATA PURPOSE & EXPLANATION (Faahfaahinta Shaashadda Guud ee Dukaanka):
+//    - Defines configuration and showcase data for the Retail Dashboard.
+//    - Contains KPI cards (Revenue, Orders, In-Stock Products, Outstanding Debts),
+//      promotional banners, fast navigation quick actions, and recent sales tickets.
+//
+// 2. BACKEND POSTGRESQL SCHEMA EQUIVALENT:
+//    - RetailHeaderData & BannerData -> `businesses` table:
+//        name VARCHAR(255), business_type = 'retail', currency = 'USD'
+//    - RetailMetricItem -> Computed from aggregation queries:
+//        SELECT SUM(total_amount) FROM sales WHERE business_id = 2 AND created_at >= CURRENT_DATE;
+//        SELECT COUNT(id) FROM products WHERE business_id = 2 AND is_active = TRUE;
+//        SELECT SUM(current_debt) FROM customers WHERE business_id = 2;
+//    - RetailOrderItem -> `sales` and `sale_items` tables:
+//        sales.id, sales.created_at, sales.total_amount, sales.payment_method, sales.payment_status
+//
+// 3. HOW TO MODIFY THIS DATA (Sida Wax Looga Beddelo):
+//    - To alter dashboard KPI figures: update `sampleRetailMetrics` values.
+//    - To add recent transactions: append a new `RetailOrderItem` to `sampleRetailOrders`.
 // ============================================================================
 
 class RetailHeaderData {

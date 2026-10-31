@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import '../general_features/models/gashi_models.dart';
+import '../general_features/pages/general_credits_page.dart';
+import '../general_features/pages/general_sales_page.dart';
+import '../general_features/pages/general_settings_page.dart';
+import '../general_features/repository/gashi_repository.dart';
+import '../general_features/services/currency_service.dart';
 import 'pages/restaurant_pos_page.dart';
-import 'pages/restaurant_sales_page.dart';
-import 'pages/restaurant_credits_page.dart';
-import 'pages/restaurant_settings_page.dart';
 import 'pages/restaurant_menu_page.dart';
 import 'fake_data/restaurant_dashboard_data.dart';
 
@@ -42,60 +45,129 @@ class _RestaurantViewState extends State<RestaurantView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFC),
-      body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _buildDashboardPage(),
-            const RestaurantPosPage(),
-            const RestaurantSalesPage(),
-            const RestaurantCreditsPage(),
-            const RestaurantSettingsPage(),
-          ],
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: const Color(0xFFFF5200),
-        unselectedItemColor: const Color(0xFF9CA3AF),
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Home',
+    return AnimatedBuilder(
+      animation: Listenable.merge([GashiRepository.instance, CurrencyService.instance]),
+      builder: (context, _) {
+        final repo = GashiRepository.instance;
+        final business = repo.getBusinessByType(BusinessType.restaurant);
+        final businessId = business?.id ?? 3;
+        final businessName = business?.name ?? widget.headerData.appName;
+
+        final List<_RestaurantNavTab> availableTabs = [
+          _RestaurantNavTab(
+            key: 'home',
+            widget: _buildDashboardPage(businessName, repo, businessId),
+            navItem: const BottomNavigationBarItem(
+              icon: Icon(Icons.home_filled),
+              label: 'Home',
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant),
-            label: 'POS',
+          if (repo.isBusinessFeatureEnabled(businessId, 'pos'))
+            const _RestaurantNavTab(
+              key: 'pos',
+              widget: RestaurantPosPage(),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.restaurant),
+                label: 'POS',
+              ),
+            ),
+          if (repo.isBusinessFeatureEnabled(businessId, 'sales'))
+            const _RestaurantNavTab(
+              key: 'sales',
+              widget: GeneralSalesPage(
+                businessId: 3,
+                businessType: BusinessType.restaurant,
+              ),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.receipt_long_outlined),
+                label: 'Sales',
+              ),
+            ),
+          if (repo.isBusinessFeatureEnabled(businessId, 'menus'))
+            const _RestaurantNavTab(
+              key: 'menus',
+              widget: RestaurantMenuPage(),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.menu_book_outlined),
+                label: 'Menu',
+              ),
+            ),
+          if (repo.isBusinessFeatureEnabled(businessId, 'credits'))
+            const _RestaurantNavTab(
+              key: 'credits',
+              widget: GeneralCreditsPage(
+                businessId: 3,
+                businessType: BusinessType.restaurant,
+              ),
+              navItem: BottomNavigationBarItem(
+                icon: Icon(Icons.people_outline),
+                label: 'Deymaha',
+              ),
+            ),
+          const _RestaurantNavTab(
+            key: 'settings',
+            widget: GeneralSettingsPage(
+              businessId: 3,
+              businessType: BusinessType.restaurant,
+            ),
+            navItem: BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              label: 'Settings',
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: 'Sales',
+        ];
+
+        final safeIndex = _currentIndex.clamp(0, availableTabs.length - 1);
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFF9FAFC),
+          body: SafeArea(
+            child: IndexedStack(
+              index: safeIndex,
+              children: availableTabs.map((t) => t.widget).toList(),
+            ),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline),
-            label: 'Credits',
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: safeIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            backgroundColor: Colors.white,
+            selectedItemColor: const Color(0xFFFF5200),
+            unselectedItemColor: const Color(0xFF9CA3AF),
+            selectedFontSize: 11,
+            unselectedFontSize: 11,
+            items: availableTabs.map((t) => t.navItem).toList(),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            label: 'More',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildDashboardPage() {
+  void _navigateToKey(String key) {
+    final repo = GashiRepository.instance;
+    final businessId = repo.getBusinessByType(BusinessType.restaurant)?.id ?? 3;
+    final List<String> activeKeys = [
+      'home',
+      if (repo.isBusinessFeatureEnabled(businessId, 'pos')) 'pos',
+      if (repo.isBusinessFeatureEnabled(businessId, 'sales')) 'sales',
+      if (repo.isBusinessFeatureEnabled(businessId, 'menus')) 'menus',
+      if (repo.isBusinessFeatureEnabled(businessId, 'credits')) 'credits',
+      'settings',
+    ];
+    final idx = activeKeys.indexOf(key);
+    if (idx != -1) {
+      setState(() => _currentIndex = idx);
+    }
+  }
+
+  Widget _buildDashboardPage(String businessName, GashiRepository repo, int businessId) {
+    final showMetrics = repo.isBusinessFeatureEnabled(businessId, 'metrics');
+    final showOrders = repo.isBusinessFeatureEnabled(businessId, 'orders');
+
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -103,30 +175,34 @@ class _RestaurantViewState extends State<RestaurantView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header Section
-          _buildTopHeader(),
+          _buildTopHeader(businessName),
           const SizedBox(height: 16),
 
           // Orange Hero Banner Card
-          _buildHeroBanner(),
+          _buildHeroBanner(businessName),
           const SizedBox(height: 16),
 
           // 2x2 Metric Cards Grid
-          _buildMetricsGrid(),
-          const SizedBox(height: 20),
+          if (showMetrics) ...[
+            _buildMetricsGrid(),
+            const SizedBox(height: 20),
+          ],
 
           // Quick Actions Section ("Degdegsiimo")
-          _buildQuickActionsSection(),
+          _buildQuickActionsSection(repo, businessId),
           const SizedBox(height: 20),
 
           // Recent Orders Section ("Dalabadki u dambeyay")
-          _buildRecentOrdersSection(),
-          const SizedBox(height: 16),
+          if (showOrders) ...[
+            _buildRecentOrdersSection(),
+            const SizedBox(height: 16),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildTopHeader() {
+  Widget _buildTopHeader(String businessName) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -155,7 +231,7 @@ class _RestaurantViewState extends State<RestaurantView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.headerData.appName,
+                  businessName,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -265,7 +341,7 @@ class _RestaurantViewState extends State<RestaurantView> {
     );
   }
 
-  Widget _buildHeroBanner() {
+  Widget _buildHeroBanner(String businessName) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
@@ -291,7 +367,7 @@ class _RestaurantViewState extends State<RestaurantView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.bannerData.title,
+                  businessName,
                   style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -410,8 +486,33 @@ class _RestaurantViewState extends State<RestaurantView> {
     );
   }
 
-  Widget _buildQuickActionsSection() {
-    final actions = widget.quickActionsData;
+  Widget _buildQuickActionsSection(GashiRepository repo, int businessId) {
+    final List<_QuickActionMapping> actionMappings = [
+      if (repo.isBusinessFeatureEnabled(businessId, 'pos') && widget.quickActionsData.isNotEmpty)
+        _QuickActionMapping(
+          key: 'pos',
+          action: widget.quickActionsData[0],
+        ),
+      if (repo.isBusinessFeatureEnabled(businessId, 'sales') && widget.quickActionsData.length > 1)
+        _QuickActionMapping(
+          key: 'sales',
+          action: widget.quickActionsData[1],
+        ),
+      if (repo.isBusinessFeatureEnabled(businessId, 'credits') && widget.quickActionsData.length > 2)
+        _QuickActionMapping(
+          key: 'credits',
+          action: widget.quickActionsData[2],
+        ),
+      if (repo.isBusinessFeatureEnabled(businessId, 'menus') && widget.quickActionsData.length > 3)
+        _QuickActionMapping(
+          key: 'menus',
+          action: widget.quickActionsData[3],
+        ),
+    ];
+
+    if (actionMappings.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,33 +531,15 @@ class _RestaurantViewState extends State<RestaurantView> {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
-            itemCount: actions.length,
+            itemCount: actionMappings.length,
             separatorBuilder: (context, index) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
-              final action = actions[index];
+              final mapping = actionMappings[index];
+              final action = mapping.action;
               final isPrimary = action.isPrimary;
 
               return GestureDetector(
-                onTap: () {
-                  if (index == 0) {
-                    // "Dalab cusub" switches to POS tab
-                    setState(() => _currentIndex = 1);
-                  } else if (index == 1) {
-                    // "Eeg iibka" switches to Sales tab
-                    setState(() => _currentIndex = 2);
-                  } else if (index == 2) {
-                    // "Macaamiisha" switches to Credits tab
-                    setState(() => _currentIndex = 3);
-                  } else if (index == 3) {
-                    // "Maamul Menu-ga" opens Menu Page
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                        builder: (context) => const RestaurantMenuPage(),
-                      ),
-                    );
-                  }
-                },
+                onTap: () => _navigateToKey(mapping.key),
                 child: isPrimary
                     ? Container(
                         width: 96,
@@ -713,3 +796,26 @@ class _RestaurantViewState extends State<RestaurantView> {
     );
   }
 }
+
+class _RestaurantNavTab {
+  final String key;
+  final Widget widget;
+  final BottomNavigationBarItem navItem;
+
+  const _RestaurantNavTab({
+    required this.key,
+    required this.widget,
+    required this.navItem,
+  });
+}
+
+class _QuickActionMapping {
+  final String key;
+  final RestaurantQuickAction action;
+
+  const _QuickActionMapping({
+    required this.key,
+    required this.action,
+  });
+}
+

@@ -1,7 +1,25 @@
 import 'package:flutter/material.dart';
 
 // ============================================================================
-// SERVICE DASHBOARD DATA MODELS & SAMPLE VARIABLES
+// SERVICE DASHBOARD DATA & POSTGRESQL SCHEMA MAPPING
+// ============================================================================
+//
+// 1. DATA PURPOSE & EXPLANATION (Faahfaahinta Shaashadda Guud ee Adeegyada):
+//    - Defines top overview KPIs and recent job tickets for workshop & service businesses.
+//    - Key metrics tracked: Today's repair income, ongoing active repair jobs (Shaqooyinka socda),
+//      completed jobs ready for customer pickup, and outstanding repair balances.
+//
+// 2. BACKEND POSTGRESQL SCHEMA EQUIVALENT:
+//    - ServiceHeaderData -> `businesses` table (business_type = 'service', business_id = 4)
+//    - ServiceMetricItem -> Aggregations from `service_jobs` and `sales`:
+//        SELECT SUM(paid_amount) FROM service_jobs WHERE business_id = 4 AND created_at >= CURRENT_DATE;
+//        SELECT COUNT(id) FROM service_jobs WHERE business_id = 4 AND status IN ('pending', 'in_progress');
+//        SELECT COUNT(id) FROM service_jobs WHERE business_id = 4 AND status = 'completed';
+//    - ServiceOrderItem -> `service_jobs` joined with `services` and `customers`
+//
+// 3. HOW TO MODIFY THIS DATA (Sida Wax Looga Beddelo):
+//    - Update `sampleServiceMetrics` to change top KPI cards.
+//    - Update `sampleServiceOrders` to test recent repair job displays.
 // ============================================================================
 
 class ServiceHeaderData {

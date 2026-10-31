@@ -1,7 +1,36 @@
 import 'package:flutter/material.dart';
 
 // ============================================================================
-// RETAIL POS DATA MODELS & SAMPLE VARIABLES
+// RETAIL POS PRODUCT CATALOG & POSTGRESQL SCHEMA MAPPING
+// ============================================================================
+//
+// 1. DATA PURPOSE & EXPLANATION (Faahfaahinta Alaabta POS-ka ee Dukaanka):
+//    - Defines the stock inventory items sold through the Retail Point of Sale (POS).
+//    - Items are organized by category (Dhar & Dharka, Kabo, Caraf & Cadar, Maacuun).
+//    - Supports real-time stock deductions, cart calculations, and checkout.
+//
+// 2. BACKEND POSTGRESQL SCHEMA EQUIVALENT:
+//    - RetailProductItem maps to the `products` table:
+//        id SERIAL PRIMARY KEY,
+//        business_id INT REFERENCES businesses(id),
+//        name VARCHAR(255) NOT NULL,
+//        selling_price NUMERIC(10, 2) NOT NULL,
+//        cost_price NUMERIC(10, 2) DEFAULT 0.00,
+//        stock_quantity INT DEFAULT 0,
+//        category VARCHAR(100),
+//        image_url TEXT,
+//        custom_attributes JSONB
+//    - RetailCartItem maps to `sale_items` during checkout:
+//        sale_id INT REFERENCES sales(id),
+//        product_id INT REFERENCES products(id),
+//        quantity INT NOT NULL,
+//        unit_price NUMERIC(10, 2) NOT NULL,
+//        total_price NUMERIC(10, 2) NOT NULL
+//
+// 3. HOW TO MODIFY THIS DATA (Sida Alaab Cusub Loogu Daro):
+//    - To add an item: Append a new `RetailProductItem` to `sampleRetailProducts`.
+//    - To change pricing or stock: Edit `price` or `stockQuantity`.
+//    - To add a new category: Add a `RetailCategoryIconItem` to `retailCategories`.
 // ============================================================================
 
 class RetailProductItem {

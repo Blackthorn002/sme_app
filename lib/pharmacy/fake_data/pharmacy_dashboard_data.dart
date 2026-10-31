@@ -1,7 +1,26 @@
 import 'package:flutter/material.dart';
 
 // ============================================================================
-// PHARMACY DASHBOARD DATA MODELS & SAMPLE VARIABLES
+// PHARMACY DASHBOARD DATA & POSTGRESQL SCHEMA MAPPING
+// ============================================================================
+//
+// 1. DATA PURPOSE & EXPLANATION (Faahfaahinta Shaashadda Guud ee Farmashiyaha):
+//    - Defines showcase KPIs, alerts, and navigation shortcuts for pharmacies.
+//    - Tracks critical pharmacy indicators: Daily medicine revenue, expiring
+//      medicines warning (Dawooyinka dhacaya), active patient prescriptions,
+//      and outstanding debts from regular patients.
+//
+// 2. BACKEND POSTGRESQL SCHEMA EQUIVALENT:
+//    - PharmacyHeaderData -> `businesses` table (business_type = 'pharmacy')
+//    - PharmacyMetricItem -> Computed aggregates:
+//        SELECT SUM(total_amount) FROM sales WHERE business_id = 1 AND created_at >= CURRENT_DATE;
+//        SELECT COUNT(id) FROM products WHERE business_id = 1 AND (custom_attributes->>'expiry_date')::date <= CURRENT_DATE + INTERVAL '60 days';
+//        SELECT COUNT(id) FROM customers WHERE business_id = 1 AND (custom_attributes->>'chronic_condition') IS NOT NULL;
+//    - PharmacyOrderItem -> `sales` table joined with patient reference
+//
+// 3. HOW TO MODIFY THIS DATA (Sida Wax Looga Beddelo):
+//    - Update `samplePharmacyMetrics` to change daily summary cards.
+//    - Update `samplePharmacyOrders` to simulate new dispensed prescription tickets.
 // ============================================================================
 
 class PharmacyHeaderData {

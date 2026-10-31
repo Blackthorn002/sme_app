@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/gashi_models.dart';
 import '../repository/gashi_repository.dart';
+import '../services/currency_service.dart';
 
 // ============================================================================
 // GENERAL SALES PAGE (Offline-First Sales History & Filtering for Retail, Pharmacy & Services)
@@ -24,6 +25,7 @@ class GeneralSalesPage extends StatefulWidget {
 class _GeneralSalesPageState extends State<GeneralSalesPage> {
   String _selectedPeriod = 'Maanta'; // 'Maanta', 'Toddobaadkan', 'Bishan'
   String _selectedStatus = 'Dhammaan'; // 'Dhammaan', 'La Bixiyay', 'Dayn'
+  String _selectedPaymentMethod = 'Dhammaan'; // 'Dhammaan', 'Zaad', 'e-Dahab', 'Kaash', 'Dayn'
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -31,6 +33,7 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
   void initState() {
     super.initState();
     GashiRepository.instance.addListener(_onRepoChanged);
+    CurrencyService.instance.addListener(_onRepoChanged);
   }
 
   void _onRepoChanged() {
@@ -40,6 +43,7 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
   @override
   void dispose() {
     GashiRepository.instance.removeListener(_onRepoChanged);
+    CurrencyService.instance.removeListener(_onRepoChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -77,7 +81,16 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
         return false;
       }
 
-      // 3. Search query
+      // 3. Payment Method filter
+      if (_selectedPaymentMethod != 'Dhammaan') {
+        final pm = sale.paymentMethod.toLowerCase();
+        if (_selectedPaymentMethod == 'Zaad' && !pm.contains('zaad')) return false;
+        if (_selectedPaymentMethod == 'e-Dahab' && !pm.contains('dahab')) return false;
+        if (_selectedPaymentMethod == 'Kaash' && (!pm.contains('kaash') && !pm.contains('cash'))) return false;
+        if (_selectedPaymentMethod == 'Dayn' && sale.paymentStatus != 'credit') return false;
+      }
+
+      // 4. Search query
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase();
         final matchesId = sale.id.toString().contains(query);
@@ -131,10 +144,12 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1D2338)),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back, color: Color(0xFF1D2338)),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -153,6 +168,27 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
           ],
         ),
         actions: [
+          // Daily exchange rate badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F3F6),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.currency_exchange, size: 13, color: Color(0xFF6B7280)),
+                const SizedBox(width: 4),
+                Text(
+                  '1\$ = ${CurrencyService.instance.dailyExchangeRate.toStringAsFixed(0)} SLSh',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF4B5563)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+
           // Period selector pill (Maanta / Toddobaadkan / Bishan)
           Container(
             margin: const EdgeInsets.only(right: 14),
@@ -245,15 +281,29 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
             ),
             const SizedBox(height: 12),
 
-            // Status Filter Chips
-            Row(
-              children: [
-                _buildStatusChip('Dhammaan', 'Dhammaan'),
-                const SizedBox(width: 8),
-                _buildStatusChip('La Bixiyay', 'La Bixiyay'),
-                const SizedBox(width: 8),
-                _buildStatusChip('Dayn', 'Dayn'),
-              ],
+            // Status & Payment Method Filter Chips
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  _buildStatusChip('Dhammaan', 'Dhammaan'),
+                  const SizedBox(width: 6),
+                  _buildStatusChip('La Bixiyay', 'La Bixiyay'),
+                  const SizedBox(width: 6),
+                  _buildStatusChip('Dayn', 'Dayn'),
+                  const SizedBox(width: 10),
+                  Container(width: 1, height: 20, color: const Color(0xFFE5E7EB)),
+                  const SizedBox(width: 10),
+                  _buildPaymentChip('Dhammaan Hababka', 'Dhammaan'),
+                  const SizedBox(width: 6),
+                  _buildPaymentChip('Zaad', 'Zaad', const Color(0xFF00A859)),
+                  const SizedBox(width: 6),
+                  _buildPaymentChip('e-Dahab', 'e-Dahab', const Color(0xFFF58220)),
+                  const SizedBox(width: 6),
+                  _buildPaymentChip('Kaash', 'Kaash', const Color(0xFF2563EB)),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -361,6 +411,42 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
     );
   }
 
+  Widget _buildPaymentChip(String label, String value, [Color? color]) {
+    final isSelected = _selectedPaymentMethod == value;
+    final chipColor = color ?? _themeColor;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedPaymentMethod = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? chipColor : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? chipColor : const Color(0xFFE5E7EB),
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: chipColor.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: isSelected ? Colors.white : const Color(0xFF4B5563),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMetricsGrid({
     required double totalRevenue,
     required int ordersCount,
@@ -378,7 +464,7 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
                 iconColor: _themeColor,
                 title: 'Dakhliga Guud',
                 value: '\$${totalRevenue.toStringAsFixed(2)}',
-                subtitle: '${(totalRevenue * 8500).toInt()} SLSH',
+                subtitle: CurrencyService.instance.formatSlsh(totalRevenue),
               ),
             ),
             const SizedBox(width: 12),
@@ -389,7 +475,7 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
                 iconColor: const Color(0xFF4F46E5),
                 title: 'Tirada Iibka',
                 value: '$ordersCount',
-                subtitle: ordersCount == 1 ? '1 Macmiil' : '$ordersCount Macaamiil',
+                subtitle: ordersCount == 1 ? '1 Dalab' : '$ordersCount Dalab',
               ),
             ),
           ],
@@ -404,7 +490,7 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
                 iconColor: const Color(0xFF10B981),
                 title: 'La Bixiyay (Paid)',
                 value: '\$${paidTotal.toStringAsFixed(2)}',
-                subtitle: '${(paidTotal * 8500).toInt()} SLSH',
+                subtitle: CurrencyService.instance.formatSlsh(paidTotal),
               ),
             ),
             const SizedBox(width: 12),
@@ -415,7 +501,7 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
                 iconColor: const Color(0xFFEF4444),
                 title: 'Dayn (Credit)',
                 value: '\$${debtTotal.toStringAsFixed(2)}',
-                subtitle: '${(debtTotal * 8500).toInt()} SLSH',
+                subtitle: CurrencyService.instance.formatSlsh(debtTotal),
               ),
             ),
           ],
@@ -740,192 +826,559 @@ class _GeneralSalesPageState extends State<GeneralSalesPage> {
   void _showReceiptModal(Sale sale) {
     final isPaid = sale.paymentStatus == 'paid';
     final isCredit = sale.paymentStatus == 'credit';
+    final isPartial = sale.paymentStatus == 'partial';
+
+    // Retrieve customer if associated
+    final customer = sale.customerId != null
+        ? GashiRepository.instance.getCustomerById(sale.customerId!)
+        : null;
+
+    final orderIdDisplay =
+        sale.customAttributes['order_id'] ?? '#ORD-${sale.id}';
+    final orderType = sale.orderType;
+    final deliveryLocation = sale.deliveryLocation;
+    final reminderMode = sale.customAttributes['reminder_mode'] as String?;
+    final reminderDays = sale.customAttributes['reminder_days'] as int?;
+    final dueDateStr = sale.customAttributes['due_date'] as String?;
+    final debtorNotes = sale.customAttributes['debtor_notes'] as String?;
+
+    DateTime? dueDate =
+        dueDateStr != null ? DateTime.tryParse(dueDateStr) : null;
 
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (modalCtx) {
-        return Padding(
-          padding: const EdgeInsets.all(20.0),
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.85,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: _themeColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(Icons.receipt_outlined, color: _themeColor, size: 20),
-                      ),
-                      const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Faahfaahinta Iibka #ORD-${sale.id}',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1D2338),
-                            ),
-                          ),
-                          Text(
-                            DateFormat('dd MMM yyyy - hh:mm a').format(sale.createdAt),
-                            style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Color(0xFF9CA3AF)),
-                    onPressed: () => Navigator.pop(modalCtx),
-                  ),
-                ],
-              ),
-              const Divider(height: 24),
-
-              // Customer info
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Macmiilka:', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-                  Text(
-                    sale.customerName,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1D2338)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Payment Method & Status
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Habka Bixinta:', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-                  Row(
-                    children: [
-                      Text(
-                        sale.paymentMethod,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1D2338)),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isPaid ? const Color(0xFFE6F7F0) : const Color(0xFFFDE8E8),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          isPaid ? 'La Bixiyay' : (isCredit ? 'Dayn' : 'Qayb'),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: isPaid ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              // Items Header
-              const Text(
-                'Alaabta La Gatay (Items)',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1D2338)),
-              ),
-              const SizedBox(height: 8),
-
-              // Items List
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF9FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFF1F3F6)),
-                ),
-                padding: const EdgeInsets.all(12),
-                child: Column(
+              // Header with Drag Handle & Close
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    ...sale.items.map((item) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _themeColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.receipt_outlined,
+                              color: _themeColor, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${item.quantity}x ${item.productName}',
-                              style: const TextStyle(fontSize: 13, color: Color(0xFF1D2338)),
+                              'Faahfaahinta Iibka $orderIdDisplay',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1D2338),
+                              ),
                             ),
                             Text(
-                              '\$${item.total.toStringAsFixed(2)}',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1D2338)),
+                              DateFormat('dd MMM yyyy - hh:mm a')
+                                  .format(sale.createdAt),
+                              style: const TextStyle(
+                                  fontSize: 11, color: Color(0xFF8E99AF)),
                             ),
                           ],
                         ),
-                      );
-                    }),
-                    if (sale.discount > 0) ...[
-                      const Divider(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Gorgortan / Dhimis:', style: TextStyle(fontSize: 12, color: Color(0xFFEF4444))),
-                          Text('-\$${sale.discount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFEF4444))),
-                        ],
-                      ),
-                    ],
-                    const Divider(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Wadarta Guud:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1D2338))),
-                        Text(
-                          '\$${sale.totalAmount.toStringAsFixed(2)} (${(sale.totalAmount * 8500).toInt()} SLSH)',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _themeColor),
-                        ),
                       ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Color(0xFF9CA3AF)),
+                      onPressed: () => Navigator.pop(modalCtx),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const Divider(height: 1),
 
-              // Close Button
-              SizedBox(
-                width: double.infinity,
-                height: 46,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _themeColor,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  icon: const Icon(Icons.print_outlined, color: Colors.white, size: 18),
-                  label: const Text(
-                    'Daabac Rasiidka (Print Receipt)',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(modalCtx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Rasiidka #ORD-${sale.id} waa la diray daabacaha!'),
-                        backgroundColor: _themeColor,
+              // Scrollable Details Body
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Status Banner
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isPaid
+                              ? const Color(0xFFE6F7F0)
+                              : (isCredit
+                                  ? const Color(0xFFFDE8E8)
+                                  : const Color(0xFFFEF3C7)),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isPaid
+                                ? const Color(0xFF10B981)
+                                : (isCredit
+                                    ? const Color(0xFFEF4444)
+                                    : const Color(0xFFF59E0B)),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  isPaid
+                                      ? Icons.check_circle_outline
+                                      : (isCredit
+                                          ? Icons.pending_actions
+                                          : Icons.pie_chart_outline),
+                                  color: isPaid
+                                      ? const Color(0xFF10B981)
+                                      : (isCredit
+                                          ? const Color(0xFFEF4444)
+                                          : const Color(0xFFF59E0B)),
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  isPaid
+                                      ? 'Iibkan waa la bixiyay'
+                                      : (isCredit
+                                          ? 'Iib Dayn ah (Credit)'
+                                          : 'Qayb baa la bixiyay'),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: isPaid
+                                        ? const Color(0xFF047857)
+                                        : (isCredit
+                                            ? const Color(0xFF991B1B)
+                                            : const Color(0xFF92400E)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                sale.paymentMethod,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1D2338),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    );
-                  },
+                      const SizedBox(height: 14),
+
+                      // Customer and Order Summary Card
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('Macmiilka:',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF6B7280))),
+                                Text(
+                                  sale.customerName,
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF1D2338)),
+                                ),
+                              ],
+                            ),
+                            if (customer != null &&
+                                customer.phone.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Taleefanka:',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF6B7280))),
+                                  Text(customer.phone,
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF374151))),
+                                ],
+                              ),
+                            ],
+                            if (orderType.isNotEmpty &&
+                                orderType != 'standard') ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Nooca Dalabka:',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF6B7280))),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEFF6FF),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      orderType,
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF2563EB)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            if (deliveryLocation != null &&
+                                deliveryLocation.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Goobta Gaadhsiinta:',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF6B7280))),
+                                  Text(deliveryLocation,
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF374151))),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // If Credit (Dayn), show reminder & debtor details
+                      if (isCredit || isPartial) ...[
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(14),
+                            border:
+                                Border.all(color: const Color(0xFFFECACA)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.notifications_active_outlined,
+                                      size: 16, color: Color(0xFFEF4444)),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'Xogta Daynta & Xusuusinta',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Color(0xFF991B1B)),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Deynta Ku Hadhey:',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF6B7280))),
+                                  Text(
+                                    '\$${(sale.totalAmount - sale.paidAmount).toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFFEF4444)),
+                                  ),
+                                ],
+                              ),
+                              if (reminderMode != null) ...[
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('Jadwalka Xusuusinta:',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF6B7280))),
+                                    Text(
+                                      reminderMode == 'daily'
+                                          ? 'Maalin kasta (Maalinta 1-aad)'
+                                          : '$reminderDays maalmood kadib',
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF991B1B)),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              if (dueDate != null) ...[
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('Waqtiga Bixinta (Due):',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF6B7280))),
+                                    Text(
+                                      DateFormat('dd MMM yyyy')
+                                          .format(dueDate),
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1D2338)),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              if (debtorNotes != null &&
+                                  debtorNotes.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('Damiin / Xusuusin:',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF6B7280))),
+                                    Text(debtorNotes,
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF374151))),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // Items Purchased Section
+                      const Row(
+                        children: [
+                          Icon(Icons.shopping_bag_outlined,
+                              size: 16, color: Color(0xFF1D2338)),
+                          SizedBox(width: 6),
+                          Text(
+                            'Alaabta La Gatay (Purchased Items)',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1D2338)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFF1F3F6)),
+                        ),
+                        child: Column(
+                          children: [
+                            ...sale.items.map((item) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item.productName,
+                                            style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight:
+                                                    FontWeight.w600,
+                                                color: Color(0xFF1D2338)),
+                                          ),
+                                          Text(
+                                            '${item.quantity}x @ \$${item.unitPrice.toStringAsFixed(2)}',
+                                            style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Color(0xFF8E99AF)),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      '\$${item.total.toStringAsFixed(2)}',
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1D2338)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                            const Divider(height: 1),
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                children: [
+                                  if (sale.discount > 0) ...[
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text('Gorgortan / Dhimis:',
+                                            style: TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFFEF4444))),
+                                        Text(
+                                            '-\$${sale.discount.toStringAsFixed(2)}',
+                                            style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFFEF4444))),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                  ],
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text('Wadarta Guud:',
+                                          style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF1D2338))),
+                                      Text(
+                                        '\$${sale.totalAmount.toStringAsFixed(2)} (${CurrencyService.instance.formatSlsh(sale.totalAmount)})',
+                                        style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                            color: _themeColor),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Bottom Action Bar
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border:
+                      Border(top: BorderSide(color: Colors.grey.shade200)),
+                ),
+                child: Row(
+                  children: [
+                    if (customer != null && customer.phone.isNotEmpty) ...[
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
+                          side: const BorderSide(color: Color(0xFFE5E7EB)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.phone,
+                            size: 16, color: Color(0xFF4B5563)),
+                        label: const Text('Wac',
+                            style: TextStyle(color: Color(0xFF4B5563))),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text('Wicitaan: ${customer.phone}')),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: _themeColor,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.print_outlined,
+                            color: Colors.white, size: 18),
+                        label: const Text(
+                          'Daabac Rasiidka (Print)',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(modalCtx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                  'Rasiidka $orderIdDisplay waa la daabacay!'),
+                              backgroundColor: _themeColor,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

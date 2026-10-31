@@ -1,7 +1,22 @@
 import 'package:flutter/material.dart';
 
 // ============================================================================
-// SERVICE SALES FAKE DATA & MODELS
+// SERVICE SALES TICKETS & POSTGRESQL SCHEMA MAPPING
+// ============================================================================
+//
+// 1. DATA PURPOSE & EXPLANATION (Faahfaahinta Rasiidhada & Iibka Adeegyada):
+//    - Represents completed repair job transactions and service sales receipts.
+//    - Includes itemized billing: Labor charge (Khidmadda Shaqada) plus any
+//      spare parts used (Qalabka la galiyay).
+//    - Tracks payment channel (Zaad, e-Dahab, Kaash) and completion status.
+//
+// 2. BACKEND POSTGRESQL SCHEMA EQUIVALENT:
+//    - ServiceSalesTicket maps to `sales` joined with `service_jobs`:
+//        sales.id, sales.created_at, sales.total_amount, sales.payment_method, sales.payment_status,
+//        service_jobs.technician_name, service_jobs.job_notes, service_jobs.parts_cost
+//
+// 3. HOW TO MODIFY THIS DATA (Sida Rasiidh Cusub Loogu Daro):
+//    - To add mock completed repair receipts: Append a `ServiceSalesTicket` to `sampleServiceSalesTickets`.
 // ============================================================================
 
 class ServiceSalesTicket {

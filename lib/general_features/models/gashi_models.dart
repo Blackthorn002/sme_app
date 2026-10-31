@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 // ============================================================================
 // GASHI PLATFORM PRODUCTION POSTGRESQL MODELS
@@ -71,6 +72,7 @@ class Business {
   final String language; // 'so' or 'en'
   final double taxRate; // e.g. 0.0 or 5.0
   final DateTime createdAt;
+  final Map<String, bool> enabledFeatures; // Feature toggles (modules)
 
   const Business({
     required this.id,
@@ -80,7 +82,12 @@ class Business {
     this.language = 'so',
     this.taxRate = 0.0,
     required this.createdAt,
+    this.enabledFeatures = const {},
   });
+
+  bool isFeatureEnabled(String featureKey) {
+    return enabledFeatures[featureKey] ?? true;
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -90,6 +97,7 @@ class Business {
         'language': language,
         'tax_rate': taxRate,
         'created_at': createdAt.toIso8601String(),
+        'enabled_features': enabledFeatures,
       };
 
   factory Business.fromJson(Map<String, dynamic> json) {
@@ -103,6 +111,9 @@ class Business {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
+      enabledFeatures: json['enabled_features'] != null
+          ? Map<String, bool>.from(json['enabled_features'] as Map)
+          : const {},
     );
   }
 
@@ -114,6 +125,7 @@ class Business {
     String? language,
     double? taxRate,
     DateTime? createdAt,
+    Map<String, bool>? enabledFeatures,
   }) {
     return Business(
       id: id ?? this.id,
@@ -123,6 +135,7 @@ class Business {
       language: language ?? this.language,
       taxRate: taxRate ?? this.taxRate,
       createdAt: createdAt ?? this.createdAt,
+      enabledFeatures: enabledFeatures ?? this.enabledFeatures,
     );
   }
 }
@@ -393,8 +406,16 @@ class Customer {
   final int businessId;
   final String name;
   final String phone;
+  final double totalDebt;
+  final double paidDebt;
   final double currentCreditBalance;
   final double depositBalance;
+  final DateTime? dueDate;
+  final String reminderMode; // 'after_days', 'daily'
+  final int reminderDays; // e.g. 1, 3, 7, 14, 30
+  final String status; // 'unpaid', 'partial', 'cleared'
+  final String notes;
+  final DateTime? createdAt;
   final Map<String, dynamic> customAttributes;
 
   const Customer({
@@ -402,18 +423,125 @@ class Customer {
     required this.businessId,
     required this.name,
     required this.phone,
+    double? totalDebt,
+    this.paidDebt = 0.0,
     this.currentCreditBalance = 0.0,
     this.depositBalance = 0.0,
+    this.dueDate,
+    this.reminderMode = 'after_days',
+    this.reminderDays = 7,
+    this.status = 'unpaid',
+    this.notes = '',
+    this.createdAt,
     this.customAttributes = const {},
-  });
+  }) : totalDebt = totalDebt ?? currentCreditBalance;
+
+  bool get isCleared => currentCreditBalance <= 0.001;
+
+  bool get isOverdue {
+    if (dueDate == null || isCleared) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final due = DateTime(dueDate!.year, dueDate!.month, dueDate!.day);
+    return today.isAfter(due);
+  }
+
+  bool get isDueToday {
+    if (dueDate == null || isCleared) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final due = DateTime(dueDate!.year, dueDate!.month, dueDate!.day);
+    return today.isAtSameMomentAs(due);
+  }
+
+  bool get isDueSoon {
+    if (dueDate == null || isCleared || isOverdue) return false;
+    return daysUntilDue >= 0 && daysUntilDue <= 3;
+  }
+
+  int get daysUntilDue {
+    if (dueDate == null) return 0;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final due = DateTime(dueDate!.year, dueDate!.month, dueDate!.day);
+    return due.difference(today).inDays;
+  }
+
+  DateTime? get lastRemindedAt {
+    final raw = customAttributes['last_reminded_at'];
+    if (raw == null) return null;
+    return DateTime.tryParse(raw.toString());
+  }
+
+  int get notificationCount {
+    return (customAttributes['notification_count'] as int?) ?? 0;
+  }
+
+  String generateSomaliReminderMessage({String? storeName, double? exchangeRate}) {
+    final amountFormatted = '\$${currentCreditBalance.toStringAsFixed(2)}';
+    String slshNote = '';
+    if (exchangeRate != null && exchangeRate > 0) {
+      final slshVal = NumberFormat('#,##0').format((currentCreditBalance * exchangeRate).round());
+      slshNote = ' (ama $slshVal SLSh)';
+    }
+    final dueStr = formattedDueDate.isNotEmpty ? formattedDueDate : 'hadda';
+    final signOff = storeName != null ? ' - Mahadsanid, $storeName' : ' - Mahadsanid';
+    
+    if (isOverdue) {
+      return 'Asc $name, waxaan ku xasuusinaynaa in waqtigii deynta dukaanka ee dhan $amountFormatted$slshNote uu dhaafay ($dueStr). Fadlan ku bixi sida ugu dhakhsaha badan.$signOff';
+    } else if (isDueToday) {
+      return 'Asc $name, waxaan ku xasuusinaynaa in deynta dukaanka ee dhan $amountFormatted$slshNote ay maanta ku egtahay. Fadlan soo bixi waqtiga.$signOff';
+    } else {
+      return 'Asc $name, waxaan ku xasuusinaynaa deynta dukaanka kuugu hadhsan oo dhan $amountFormatted$slshNote inay ku egtahay $dueStr. Fadlan diyaarso.$signOff';
+    }
+  }
+
+  String get reminderDescription {
+    if (reminderMode == 'daily') {
+      return 'Maalin kasta (Laga bilaabo maalinta 1-aad)';
+    } else {
+      return 'Xusuusin $reminderDays maalmood kadib';
+    }
+  }
+
+  String get formattedDueDate {
+    if (dueDate == null) return '';
+    return DateFormat('dd MMM yyyy').format(dueDate!);
+  }
+
+  String get statusLabel {
+    if (isCleared) return 'Dhammaystiray';
+    if (paidDebt > 0) return 'Qayb bixiyay';
+    return 'Aan bixin';
+  }
+
+  Color get statusColor {
+    if (isCleared) return const Color(0xFF10B981);
+    if (paidDebt > 0) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
+  Color get statusBg {
+    if (isCleared) return const Color(0xFFE6F7F0);
+    if (paidDebt > 0) return const Color(0xFFFEF3C7);
+    return const Color(0xFFFDE8E8);
+  }
 
   Customer copyWith({
     int? id,
     int? businessId,
     String? name,
     String? phone,
+    double? totalDebt,
+    double? paidDebt,
     double? currentCreditBalance,
     double? depositBalance,
+    DateTime? dueDate,
+    String? reminderMode,
+    int? reminderDays,
+    String? status,
+    String? notes,
+    DateTime? createdAt,
     Map<String, dynamic>? customAttributes,
   }) {
     return Customer(
@@ -421,8 +549,16 @@ class Customer {
       businessId: businessId ?? this.businessId,
       name: name ?? this.name,
       phone: phone ?? this.phone,
+      totalDebt: totalDebt ?? this.totalDebt,
+      paidDebt: paidDebt ?? this.paidDebt,
       currentCreditBalance: currentCreditBalance ?? this.currentCreditBalance,
       depositBalance: depositBalance ?? this.depositBalance,
+      dueDate: dueDate ?? this.dueDate,
+      reminderMode: reminderMode ?? this.reminderMode,
+      reminderDays: reminderDays ?? this.reminderDays,
+      status: status ?? this.status,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
       customAttributes: customAttributes ?? this.customAttributes,
     );
   }
@@ -432,20 +568,43 @@ class Customer {
         'business_id': businessId,
         'name': name,
         'phone': phone,
+        'total_debt': totalDebt,
+        'paid_debt': paidDebt,
         'current_credit_balance': currentCreditBalance,
         'deposit_balance': depositBalance,
+        'due_date': dueDate?.toIso8601String(),
+        'reminder_mode': reminderMode,
+        'reminder_days': reminderDays,
+        'status': status,
+        'notes': notes,
+        'created_at': createdAt?.toIso8601String(),
         'custom_attributes': customAttributes,
       };
 
   factory Customer.fromJson(Map<String, dynamic> json) {
+    final balance = (json['current_credit_balance'] as num?)?.toDouble() ?? 0.0;
+    final total = (json['total_debt'] as num?)?.toDouble() ?? balance;
+    final paid = (json['paid_debt'] as num?)?.toDouble() ?? 0.0;
+
     return Customer(
       id: json['id'] as int,
       businessId: json['business_id'] as int,
       name: json['name'] as String,
       phone: json['phone'] as String? ?? '',
-      currentCreditBalance:
-          (json['current_credit_balance'] as num?)?.toDouble() ?? 0.0,
+      totalDebt: total,
+      paidDebt: paid,
+      currentCreditBalance: balance,
       depositBalance: (json['deposit_balance'] as num?)?.toDouble() ?? 0.0,
+      dueDate: json['due_date'] != null
+          ? DateTime.tryParse(json['due_date'] as String)
+          : null,
+      reminderMode: json['reminder_mode'] as String? ?? 'after_days',
+      reminderDays: json['reminder_days'] as int? ?? 7,
+      status: json['status'] as String? ?? (balance <= 0 ? 'cleared' : 'unpaid'),
+      notes: json['notes'] as String? ?? '',
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'] as String)
+          : null,
       customAttributes: json['custom_attributes'] != null
           ? Map<String, dynamic>.from(json['custom_attributes'] as Map)
           : {},
@@ -623,3 +782,187 @@ class Sale {
     );
   }
 }
+
+// 6. SERVICE JOBS (PostgreSQL `service_jobs` Schema)
+// Matches:
+// CREATE TABLE service_jobs (
+//     id BIGSERIAL PRIMARY KEY,
+//     business_id BIGINT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+//     customer_id BIGINT NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+//     service_id BIGINT NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+//     assigned_staff_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+//     status VARCHAR(32) NOT NULL, -- pending, in_progress, completed, delivered
+//     total_amount NUMERIC(12, 2) NOT NULL,
+//     deposit_paid NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+//     balance_due NUMERIC(12, 2) NOT NULL,
+//     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+// );
+
+class ServiceJob {
+  final int id;
+  final int businessId;
+  final int customerId;
+  final String customerName;
+  final String customerPhone;
+  final int serviceId;
+  final String serviceName;
+  final String? assignedStaff; // Technician
+  final String status; // 'pending', 'in_progress', 'completed', 'delivered'
+  final double totalAmount;
+  final double depositPaid;
+  final double balanceDue;
+  final String? referenceInfo; // Plate #, Device Model, Measurement
+  final String? notes;
+  final DateTime createdAt;
+  final DateTime? estimatedCompletion;
+
+  const ServiceJob({
+    required this.id,
+    required this.businessId,
+    required this.customerId,
+    required this.customerName,
+    this.customerPhone = '',
+    required this.serviceId,
+    required this.serviceName,
+    this.assignedStaff,
+    this.status = 'pending',
+    required this.totalAmount,
+    this.depositPaid = 0.0,
+    double? balanceDue,
+    this.referenceInfo,
+    this.notes,
+    required this.createdAt,
+    this.estimatedCompletion,
+  }) : balanceDue = balanceDue ?? (totalAmount - depositPaid);
+
+  bool get isPaidInFull => balanceDue <= 0.001;
+
+  String get statusLabelSomali {
+    switch (status.toLowerCase()) {
+      case 'in_progress':
+        return 'Ku jira Shaqada';
+      case 'completed':
+        return 'Diyaar (Dhammaaday)';
+      case 'delivered':
+        return 'La Bixiyay';
+      case 'pending':
+      default:
+        return 'Sugaya Bilow';
+    }
+  }
+
+  Color get statusColor {
+    switch (status.toLowerCase()) {
+      case 'in_progress':
+        return const Color(0xFF2563EB); // Blue
+      case 'completed':
+        return const Color(0xFF10B981); // Green
+      case 'delivered':
+        return const Color(0xFF6B7280); // Gray
+      case 'pending':
+      default:
+        return const Color(0xFFF59E0B); // Amber
+    }
+  }
+
+  Color get statusBgColor {
+    switch (status.toLowerCase()) {
+      case 'in_progress':
+        return const Color(0xFFEFF6FF);
+      case 'completed':
+        return const Color(0xFFE6F7F0);
+      case 'delivered':
+        return const Color(0xFFF3F4F6);
+      case 'pending':
+      default:
+        return const Color(0xFFFEF3C7);
+    }
+  }
+
+  String get formattedCreatedAt {
+    return DateFormat('dd MMM yyyy, hh:mm a').format(createdAt);
+  }
+
+  ServiceJob copyWith({
+    int? id,
+    int? businessId,
+    int? customerId,
+    String? customerName,
+    String? customerPhone,
+    int? serviceId,
+    String? serviceName,
+    String? assignedStaff,
+    String? status,
+    double? totalAmount,
+    double? depositPaid,
+    double? balanceDue,
+    String? referenceInfo,
+    String? notes,
+    DateTime? createdAt,
+    DateTime? estimatedCompletion,
+  }) {
+    return ServiceJob(
+      id: id ?? this.id,
+      businessId: businessId ?? this.businessId,
+      customerId: customerId ?? this.customerId,
+      customerName: customerName ?? this.customerName,
+      customerPhone: customerPhone ?? this.customerPhone,
+      serviceId: serviceId ?? this.serviceId,
+      serviceName: serviceName ?? this.serviceName,
+      assignedStaff: assignedStaff ?? this.assignedStaff,
+      status: status ?? this.status,
+      totalAmount: totalAmount ?? this.totalAmount,
+      depositPaid: depositPaid ?? this.depositPaid,
+      balanceDue: balanceDue ?? this.balanceDue,
+      referenceInfo: referenceInfo ?? this.referenceInfo,
+      notes: notes ?? this.notes,
+      createdAt: createdAt ?? this.createdAt,
+      estimatedCompletion: estimatedCompletion ?? this.estimatedCompletion,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'business_id': businessId,
+        'customer_id': customerId,
+        'customer_name': customerName,
+        'customer_phone': customerPhone,
+        'service_id': serviceId,
+        'service_name': serviceName,
+        'assigned_staff': assignedStaff,
+        'status': status,
+        'total_amount': totalAmount,
+        'deposit_paid': depositPaid,
+        'balance_due': balanceDue,
+        'reference_info': referenceInfo,
+        'notes': notes,
+        'created_at': createdAt.toIso8601String(),
+        'estimated_completion': estimatedCompletion?.toIso8601String(),
+      };
+
+  factory ServiceJob.fromJson(Map<String, dynamic> json) {
+    return ServiceJob(
+      id: json['id'] as int,
+      businessId: json['business_id'] as int,
+      customerId: json['customer_id'] as int,
+      customerName: json['customer_name'] as String? ?? 'Macmiil',
+      customerPhone: json['customer_phone'] as String? ?? '',
+      serviceId: json['service_id'] as int,
+      serviceName: json['service_name'] as String? ?? 'Adeeg',
+      assignedStaff: json['assigned_staff'] as String?,
+      status: json['status'] as String? ?? 'pending',
+      totalAmount: (json['total_amount'] as num).toDouble(),
+      depositPaid: (json['deposit_paid'] as num?)?.toDouble() ?? 0.0,
+      balanceDue: (json['balance_due'] as num?)?.toDouble(),
+      referenceInfo: json['reference_info'] as String?,
+      notes: json['notes'] as String?,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+      estimatedCompletion: json['estimated_completion'] != null
+          ? DateTime.parse(json['estimated_completion'] as String)
+          : null,
+    );
+  }
+}
+

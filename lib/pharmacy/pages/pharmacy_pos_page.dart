@@ -10,6 +10,7 @@ class PharmacyPosPage extends StatefulWidget {
   final PharmacySessionInfo sessionInfo;
   final PharmacyCustomerInfo customerInfo;
   final PharmacyTextLabels labels;
+  final List<PharmacyCartItem>? initialCart;
 
   const PharmacyPosPage({
     super.key,
@@ -20,6 +21,7 @@ class PharmacyPosPage extends StatefulWidget {
     this.sessionInfo = const PharmacySessionInfo(),
     this.customerInfo = const PharmacyCustomerInfo(),
     this.labels = const PharmacyTextLabels(),
+    this.initialCart,
   });
 
   @override
@@ -43,7 +45,9 @@ class _PharmacyPosPageState extends State<PharmacyPosPage> {
         ? widget.paymentMethods.first.id 
         : 'Zaad';
 
-    _cart = [];
+    _cart = widget.initialCart != null
+        ? List<PharmacyCartItem>.from(widget.initialCart!)
+        : [];
   }
 
   @override

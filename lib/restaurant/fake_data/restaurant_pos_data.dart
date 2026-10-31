@@ -1,8 +1,86 @@
 import 'package:flutter/material.dart';
 
 // ============================================================================
-// RESTAURANT POS DATA MODELS & SAMPLE VARIABLES
+// RESTAURANT MULTI-MENU CATALOG & POSTGRESQL SCHEMA MAPPING
 // ============================================================================
+//
+// 1. DATA PURPOSE & EXPLANATION (Faahfaahinta Menu-yada Makhaayadda):
+//    - Defines the full restaurant food and drink catalog split across 4 distinct
+//      shift menus:
+//        * Morning Menu / Quraac ('morning') - 06:00 AM to 11:30 AM (Canjeero, beer, suqaar)
+//        * Afternoon Menu / Qado ('afternoon') - 12:00 PM to 04:30 PM (Bariis, baasto, hilib geel)
+//        * Dinner Menu / Casho ('dinner') - 05:30 PM to 11:00 PM (Muqmad, roti, maraq)
+//        * Drinks & Cafe / Cabitaan ('drinks') - All-day fresh juices and Somali spiced tea
+//    - Each menu can be enabled or disabled via `RestaurantMenuController` or `RestaurantMenuPage`.
+//      When disabled, its dishes automatically vanish from `RestaurantPosPage`.
+//
+// 2. BACKEND POSTGRESQL SCHEMA EQUIVALENT:
+//    - RestaurantMenuSection -> `menu_sections` table:
+//        id VARCHAR(50) PRIMARY KEY,
+//        business_id INT REFERENCES businesses(id),
+//        title VARCHAR(100) NOT NULL,
+//        somali_title VARCHAR(100) NOT NULL,
+//        time_range VARCHAR(50),
+//        is_enabled BOOLEAN DEFAULT TRUE,
+//        icon_name VARCHAR(50)
+//    - RestaurantMenuItem -> `products` table:
+//        id SERIAL PRIMARY KEY,
+//        business_id INT REFERENCES businesses(id),  -- business_id = 3 (Restaurant)
+//        name VARCHAR(255) NOT NULL,
+//        selling_price NUMERIC(10, 2) NOT NULL,
+//        category VARCHAR(100),
+//        custom_attributes JSONB:
+//          {
+//            "menu_section_id": "morning", -- 'morning', 'afternoon', 'dinner', 'drinks'
+//            "spicy_level": "medium",
+//            "serving_time_minutes": 15
+//          }
+//
+// 3. HOW TO MODIFY THIS DATA (Sida Cunto Cusub Loogu Daro):
+//    - To add a new dish: Append a `RestaurantMenuItem` to `sampleRestaurantDishes`.
+//      Always specify the correct `menuSectionId` ('morning', 'afternoon', 'dinner', 'drinks').
+//    - To change pricing: Edit the `price` field (in USD, converted reactively to SLSh).
+// ============================================================================
+
+class RestaurantMenuSection {
+  final String id; // 'morning', 'afternoon', 'dinner', 'drinks'
+  final String title;
+  final String somaliTitle;
+  final String timeRange; // '06:00 AM - 11:30 AM'
+  final IconData icon;
+  final Color color;
+  bool isEnabled;
+
+  RestaurantMenuSection({
+    required this.id,
+    required this.title,
+    required this.somaliTitle,
+    required this.timeRange,
+    required this.icon,
+    required this.color,
+    this.isEnabled = true,
+  });
+
+  RestaurantMenuSection copyWith({
+    String? id,
+    String? title,
+    String? somaliTitle,
+    String? timeRange,
+    IconData? icon,
+    Color? color,
+    bool? isEnabled,
+  }) {
+    return RestaurantMenuSection(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      somaliTitle: somaliTitle ?? this.somaliTitle,
+      timeRange: timeRange ?? this.timeRange,
+      icon: icon ?? this.icon,
+      color: color ?? this.color,
+      isEnabled: isEnabled ?? this.isEnabled,
+    );
+  }
+}
 
 class RestaurantMenuItem {
   final String id;
@@ -12,6 +90,8 @@ class RestaurantMenuItem {
   final String category;
   final String? tag;
   final String? note;
+  final String menuSectionId; // 'morning', 'afternoon', 'dinner', 'drinks'
+  final bool isAvailable;
 
   const RestaurantMenuItem({
     required this.id,
@@ -21,7 +101,33 @@ class RestaurantMenuItem {
     required this.category,
     this.tag,
     this.note,
+    this.menuSectionId = 'afternoon',
+    this.isAvailable = true,
   });
+
+  RestaurantMenuItem copyWith({
+    String? id,
+    String? name,
+    double? price,
+    String? imageUrl,
+    String? category,
+    String? tag,
+    String? note,
+    String? menuSectionId,
+    bool? isAvailable,
+  }) {
+    return RestaurantMenuItem(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      price: price ?? this.price,
+      imageUrl: imageUrl ?? this.imageUrl,
+      category: category ?? this.category,
+      tag: tag ?? this.tag,
+      note: note ?? this.note,
+      menuSectionId: menuSectionId ?? this.menuSectionId,
+      isAvailable: isAvailable ?? this.isAvailable,
+    );
+  }
 }
 
 class RestaurantCartItem {
@@ -168,59 +274,199 @@ class PosTextLabels {
   });
 }
 
-// Sample externalizable default variables
+// Default Restaurant Menu Sections
+final List<RestaurantMenuSection> sampleRestaurantMenuSections = [
+  RestaurantMenuSection(
+    id: 'morning',
+    title: 'Menu-ga Quraacda (Morning)',
+    somaliTitle: 'Quraac',
+    timeRange: '06:00 AM - 11:30 AM',
+    icon: Icons.wb_sunny_outlined,
+    color: const Color(0xFFF59E0B),
+    isEnabled: true,
+  ),
+  RestaurantMenuSection(
+    id: 'afternoon',
+    title: 'Menu-ga Qadada (Afternoon)',
+    somaliTitle: 'Qado',
+    timeRange: '12:00 PM - 04:30 PM',
+    icon: Icons.restaurant,
+    color: const Color(0xFFFF5200),
+    isEnabled: true,
+  ),
+  RestaurantMenuSection(
+    id: 'dinner',
+    title: 'Menu-ga Cashada (Dinner)',
+    somaliTitle: 'Casho',
+    timeRange: '05:00 PM - 11:00 PM',
+    icon: Icons.nights_stay_outlined,
+    color: const Color(0xFF4F46E5),
+    isEnabled: true,
+  ),
+  RestaurantMenuSection(
+    id: 'drinks',
+    title: 'Cabitaanno & Macmacaan (Drinks)',
+    somaliTitle: 'Cabitaan',
+    timeRange: 'Maalintii oo dhan (All Day)',
+    icon: Icons.local_drink_outlined,
+    color: const Color(0xFF10B981),
+    isEnabled: true,
+  ),
+];
+
+// Sample default menu items assigned to respective menu sections
 const List<RestaurantMenuItem> sampleRestaurantMenuItems = [
+  // 1. MORNING / QURAAC ITEMS
+  RestaurantMenuItem(
+    id: 'm_morn_1',
+    name: 'Canjeero & Beer Shiilan',
+    price: 4.50,
+    imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80',
+    category: 'Quraac',
+    tag: 'Caanka ah',
+    note: 'Canjeero 3 xabbo iyo beer cusub',
+    menuSectionId: 'morning',
+  ),
+  RestaurantMenuItem(
+    id: 'm_morn_2',
+    name: 'Malawax & Malab / Subag',
+    price: 3.00,
+    imageUrl: 'https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=400&q=80',
+    category: 'Quraac',
+    note: 'Malawax macaan oo subag iyo malab leh',
+    menuSectionId: 'morning',
+  ),
+  RestaurantMenuItem(
+    id: 'm_morn_3',
+    name: 'Omelette & Roodhi Somali',
+    price: 2.50,
+    imageUrl: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=400&q=80',
+    category: 'Quraac',
+    note: 'Ukumo laba ah iyo rooti jilicsan',
+    menuSectionId: 'morning',
+  ),
+  RestaurantMenuItem(
+    id: 'm_morn_4',
+    name: 'Shaah Somali Cadeys',
+    price: 1.00,
+    imageUrl: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=400&q=80',
+    category: 'Quraac',
+    tag: 'Shaah Kulul',
+    note: 'Shaah hayl iyo qorfe leh',
+    menuSectionId: 'morning',
+  ),
+
+  // 2. AFTERNOON / QADO ITEMS
   RestaurantMenuItem(
     id: '1',
-    name: 'Bariis iyo Hilib',
+    name: 'Bariis iyo Hilib Geel',
     price: 8.0,
     imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80',
     category: 'Cuntooyinka',
     tag: 'Hilib Geel',
-    note: 'Bariis dheeraad ah',
+    note: 'Bariis dheeraad ah oo suugo leh',
+    menuSectionId: 'afternoon',
   ),
   RestaurantMenuItem(
     id: '2',
-    name: 'Bariis Chicken',
+    name: 'Bariis & Digaag Duban',
     price: 7.0,
     imageUrl: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=400&q=80',
     category: 'Cuntooyinka',
+    note: 'Digaag curry iyo bariis basmati ah',
+    menuSectionId: 'afternoon',
   ),
   RestaurantMenuItem(
     id: '3',
-    name: 'Baasto',
-    price: 6.0,
+    name: 'Baasto Saldaata & Hilib',
+    price: 6.5,
     imageUrl: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?auto=format&fit=crop&w=400&q=80',
     category: 'Cuntooyinka',
+    menuSectionId: 'afternoon',
   ),
   RestaurantMenuItem(
     id: '4',
-    name: 'Suqaar',
+    name: 'Suqaar & Chapati',
     price: 8.0,
     imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80',
     category: 'Cuntooyinka',
+    menuSectionId: 'afternoon',
   ),
   RestaurantMenuItem(
     id: '5',
-    name: 'Maraq',
+    name: 'Maraq & Hilib Adhi',
     price: 7.0,
     imageUrl: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=400&q=80',
     category: 'Cuntooyinka',
+    menuSectionId: 'afternoon',
+  ),
+
+  // 3. DINNER / CASHO ITEMS
+  RestaurantMenuItem(
+    id: 'm_din_1',
+    name: 'Chapati & Suqaar Hilib',
+    price: 5.50,
+    imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=400&q=80',
+    category: 'Casho',
+    tag: 'Casho Kulul',
+    note: 'Chapati 2 xabbo iyo suqaar hilib ari',
+    menuSectionId: 'dinner',
+  ),
+  RestaurantMenuItem(
+    id: 'm_din_2',
+    name: 'Kimis & Beer Shiilan',
+    price: 4.50,
+    imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80',
+    category: 'Casho',
+    note: 'Kimis qamadi ah iyo beer shiilan',
+    menuSectionId: 'dinner',
+  ),
+  RestaurantMenuItem(
+    id: 'm_din_3',
+    name: 'Boorash & Caano Geel',
+    price: 3.50,
+    imageUrl: 'https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=400&q=80',
+    category: 'Casho',
+    note: 'Boorash sonkor iyo caano geel leh',
+    menuSectionId: 'dinner',
   ),
   RestaurantMenuItem(
     id: '6',
-    name: 'Sambusa',
-    price: 1.0,
+    name: 'Sambusa Hilib & Basal (4 xabbo)',
+    price: 2.0,
     imageUrl: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=400&q=80',
-    category: 'Cuntooyinka',
-    note: 'Sambusa Qudaar',
+    category: 'Casho',
+    note: 'Sanbuus hilib iyo basal leh',
+    menuSectionId: 'dinner',
   ),
+
+  // 4. DRINKS & DESSERTS
   RestaurantMenuItem(
     id: '7',
-    name: 'Sharaab Avocado',
-    price: 1.5,
+    name: 'Sharaab Mango & Qare',
+    price: 2.0,
     imageUrl: 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=400&q=80',
     category: 'Cabitaan',
+    tag: 'Cusub (Fresh)',
+    menuSectionId: 'drinks',
+  ),
+  RestaurantMenuItem(
+    id: '8',
+    name: 'Caano Geel Fiican',
+    price: 2.5,
+    imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80',
+    category: 'Cabitaan',
+    tag: 'Caano Geel',
+    note: 'Caano dhalad ah oo la karkariyay',
+    menuSectionId: 'drinks',
+  ),
+  RestaurantMenuItem(
+    id: '9',
+    name: 'Sharaab Avocado & Caano',
+    price: 2.5,
+    imageUrl: 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=400&q=80',
+    category: 'Cabitaan',
+    menuSectionId: 'drinks',
   ),
 ];
 
@@ -256,8 +502,8 @@ const List<PosPaymentMethod> samplePosPaymentMethods = [
 
 const List<CategoryIconItem> sampleCategoryIcons = [
   CategoryIconItem(title: 'Dhammaan', icon: Icons.grid_view_rounded),
-  CategoryIconItem(title: 'Quraac', icon: Icons.history),
-  CategoryIconItem(title: 'Cunto', icon: Icons.local_fire_department_outlined),
-  CategoryIconItem(title: 'Kharash', icon: Icons.restaurant),
+  CategoryIconItem(title: 'Quraac', icon: Icons.wb_sunny_outlined),
+  CategoryIconItem(title: 'Cuntooyinka', icon: Icons.restaurant),
+  CategoryIconItem(title: 'Casho', icon: Icons.nights_stay_outlined),
   CategoryIconItem(title: 'Cabitaan', icon: Icons.local_drink_outlined),
 ];

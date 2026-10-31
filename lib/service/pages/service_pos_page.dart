@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../common/widgets/app_cached_image.dart';
+import '../../general_features/models/gashi_models.dart';
+import '../../general_features/repository/gashi_repository.dart';
 import '../fake_data/service_pos_data.dart';
 import '../services/service_controller.dart';
 import 'service_services_page.dart';
@@ -1055,7 +1057,12 @@ class _ServicePosPageState extends State<ServicePosPage> {
     final customerPhoneCtrl = TextEditingController(text: widget.customerInfo.phone);
     final customerRefCtrl = TextEditingController(text: widget.customerInfo.referenceInfo);
     final paidNowCtrl = TextEditingController(text: '0.00');
-    final dueDateCtrl = TextEditingController();
+    Customer? selectedExistingDebtor;
+    bool isNewDebtor = true;
+    String reminderMode = 'days'; // 'days' or 'daily'
+    int reminderDays = 7;
+    DateTime calculatedDueDate = DateTime.now().add(const Duration(days: 7));
+    final customDaysCtrl = TextEditingController(text: '7');
 
     showModalBottomSheet<void>(
       context: context,
@@ -1167,6 +1174,14 @@ class _ServicePosPageState extends State<ServicePosPage> {
                                   customerPhoneCtrl.clear();
                                 }
                               });
+                            },
+                            isNewDebtor: isNewDebtor,
+                            onToggleNewDebtor: (val) {
+                              setSheetState(() => isNewDebtor = val);
+                            },
+                            selectedExistingDebtor: selectedExistingDebtor,
+                            onSelectDebtor: (deb) {
+                              setSheetState(() => selectedExistingDebtor = deb);
                             },
                             nameCtrl: customerNameCtrl,
                             phoneCtrl: customerPhoneCtrl,
@@ -1368,27 +1383,6 @@ class _ServicePosPageState extends State<ServicePosPage> {
                                           ],
                                         ),
                                       ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            const Text('Waqtiga Bixinta / Notes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                            const SizedBox(height: 4),
-                                            TextField(
-                                              controller: dueDateCtrl,
-                                              decoration: InputDecoration(
-                                                hintText: 'e.g. 7 maalmood',
-                                                filled: true,
-                                                fillColor: Colors.white,
-                                                isDense: true,
-                                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
                                     ],
                                   ),
                                   const SizedBox(height: 12),
@@ -1415,6 +1409,186 @@ class _ServicePosPageState extends State<ServicePosPage> {
                                         ),
                                       );
                                     },
+                                  ),
+                                  const SizedBox(height: 14),
+
+                                  // REMINDER SCHEDULE SECTION
+                                  const Text(
+                                    'Jadwalka Xusuusinta Deynta (Reminder Schedule)',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: Color(0xFF991B1B),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ChoiceChip(
+                                          label: const Text('Maalmo Kadib'),
+                                          selected: reminderMode == 'days',
+                                          selectedColor: const Color(0xFFEF4444),
+                                          labelStyle: TextStyle(
+                                            color: reminderMode == 'days' ? Colors.white : const Color(0xFF374151),
+                                            fontWeight: reminderMode == 'days' ? FontWeight.bold : FontWeight.w500,
+                                            fontSize: 11,
+                                          ),
+                                          onSelected: (val) {
+                                            if (val) {
+                                              setSheetState(() {
+                                                reminderMode = 'days';
+                                                calculatedDueDate = DateTime.now().add(Duration(days: reminderDays));
+                                              });
+                                            }
+                                          },
+                                          showCheckmark: false,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: ChoiceChip(
+                                          label: const Text('Maalin Kasta'),
+                                          selected: reminderMode == 'daily',
+                                          selectedColor: const Color(0xFFEF4444),
+                                          labelStyle: TextStyle(
+                                            color: reminderMode == 'daily' ? Colors.white : const Color(0xFF374151),
+                                            fontWeight: reminderMode == 'daily' ? FontWeight.bold : FontWeight.w500,
+                                            fontSize: 11,
+                                          ),
+                                          onSelected: (val) {
+                                            if (val) {
+                                              setSheetState(() {
+                                                reminderMode = 'daily';
+                                                calculatedDueDate = DateTime.now().add(const Duration(days: 1));
+                                              });
+                                            }
+                                          },
+                                          showCheckmark: false,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (reminderMode == 'days') ...[
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 6,
+                                      children: [1, 3, 7, 14, 30].map((d) {
+                                        final isSel = reminderDays == d;
+                                        return ChoiceChip(
+                                          label: Text('$d Maalmood'),
+                                          selected: isSel,
+                                          selectedColor: const Color(0xFFEF4444),
+                                          labelStyle: TextStyle(
+                                            color: isSel ? Colors.white : const Color(0xFF374151),
+                                            fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                                            fontSize: 11,
+                                          ),
+                                          onSelected: (val) {
+                                            if (val) {
+                                              setSheetState(() {
+                                                reminderDays = d;
+                                                customDaysCtrl.text = d.toString();
+                                                calculatedDueDate = DateTime.now().add(Duration(days: d));
+                                              });
+                                            }
+                                          },
+                                          showCheckmark: false,
+                                        );
+                                      }).toList(),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            controller: customDaysCtrl,
+                                            keyboardType: TextInputType.number,
+                                            decoration: InputDecoration(
+                                              labelText: 'Tirada Maalmaha',
+                                              labelStyle: const TextStyle(fontSize: 11),
+                                              suffixText: 'maalmood',
+                                              filled: true,
+                                              fillColor: Colors.white,
+                                              isDense: true,
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(10),
+                                              ),
+                                            ),
+                                            onChanged: (val) {
+                                              final parsed = int.tryParse(val);
+                                              if (parsed != null && parsed > 0) {
+                                                setSheetState(() {
+                                                  reminderDays = parsed;
+                                                  calculatedDueDate = DateTime.now().add(Duration(days: parsed));
+                                                });
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        IconButton(
+                                          tooltip: 'Dooro Taariikh (Pick Date)',
+                                          icon: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(10),
+                                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                                            ),
+                                            child: const Icon(Icons.calendar_month, color: Color(0xFFEF4444), size: 20),
+                                          ),
+                                          onPressed: () async {
+                                            final picked = await showDatePicker(
+                                              context: context,
+                                              initialDate: calculatedDueDate,
+                                              firstDate: DateTime.now(),
+                                              lastDate: DateTime.now().add(const Duration(days: 365)),
+                                            );
+                                            if (picked != null) {
+                                              final daysDiff = picked.difference(DateTime.now()).inDays + 1;
+                                              setSheetState(() {
+                                                calculatedDueDate = picked;
+                                                reminderDays = daysDiff > 0 ? daysDiff : 1;
+                                                customDaysCtrl.text = reminderDays.toString();
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  const SizedBox(height: 8),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: const Color(0xFFFECACA)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          reminderMode == 'daily' ? Icons.info_outline : Icons.event_available,
+                                          size: 16,
+                                          color: const Color(0xFFDC2626),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            reminderMode == 'daily'
+                                                ? 'Xusuusin maalin kasta laga bilaabo berrito (${DateTime.now().add(const Duration(days: 1)).day}/${DateTime.now().add(const Duration(days: 1)).month}/${DateTime.now().add(const Duration(days: 1)).year}) ilaa laga bixiyo.'
+                                                : 'Waqtiga Bixinta: ${calculatedDueDate.day}/${calculatedDueDate.month}/${calculatedDueDate.year} ($reminderDays maalmood kadib)',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF991B1B),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
@@ -1443,6 +1617,13 @@ class _ServicePosPageState extends State<ServicePosPage> {
                         final refNote = ref.isNotEmpty ? ' [$ref]' : '';
                         final phoneNote = phone.isNotEmpty ? ' ($phone)' : '';
 
+                        final paidAmount = isDaynPayment
+                            ? (double.tryParse(paidNowCtrl.text) ?? 0.0)
+                            : _cartTotal;
+                        final paymentStatus = isDaynPayment
+                            ? (paidAmount > 0 ? 'partial' : 'credit')
+                            : 'paid';
+
                         if (isDaynPayment) {
                           if (name.isEmpty || name.contains('Walk-in')) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -1450,9 +1631,79 @@ class _ServicePosPageState extends State<ServicePosPage> {
                             );
                             return;
                           }
-                          final paid = double.tryParse(paidNowCtrl.text) ?? 0.0;
-                          final remaining = (_cartTotal - paid).clamp(0.0, _cartTotal);
+                        }
 
+                        int? finalCustomerId;
+                        if (isDaynPayment) {
+                          if (isNewDebtor) {
+                            final newCustomer = GashiRepository.instance.addCustomer(
+                              Customer(
+                                id: 0,
+                                businessId: 4,
+                                name: name,
+                                phone: phone.isNotEmpty ? phone : '+252 63 0000000',
+                                totalDebt: 0.0,
+                                paidDebt: 0.0,
+                                currentCreditBalance: 0.0,
+                                dueDate: calculatedDueDate,
+                                reminderMode: reminderMode,
+                                reminderDays: reminderDays,
+                                status: 'active',
+                                notes: ref.isNotEmpty ? 'Tixraac: $ref' : 'Deyn Adeeg',
+                                createdAt: DateTime.now(),
+                              ),
+                            );
+                            finalCustomerId = newCustomer.id;
+                          } else {
+                            finalCustomerId = selectedExistingDebtor?.id;
+                            if (finalCustomerId != null) {
+                              GashiRepository.instance.updateCustomerReminder(
+                                customerId: finalCustomerId,
+                                reminderMode: reminderMode,
+                                reminderDays: reminderDays,
+                                dueDate: calculatedDueDate,
+                              );
+                            }
+                          }
+                        }
+
+                        // Record sale into GashiRepository (offline-first, triggers GeneralSalesPage reactive updates)
+                        GashiRepository.instance.recordSale(
+                          businessId: 4, // Service
+                          customerId: finalCustomerId,
+                          customerName: isDaynPayment ? name : (name.isNotEmpty ? name : 'Macmiil Caadi ah'),
+                          orderType: _selectedOrderType,
+                          totalAmount: _cartTotal,
+                          discount: _overallDiscount,
+                          paidAmount: paidAmount,
+                          paymentStatus: paymentStatus,
+                          paymentMethod: isDaynPayment ? 'Credit' : selectedPayment,
+                          customAttributes: {
+                            'title': _selectedOrderType == 'Standard' ? 'Adeeg Dukaanka' : _selectedOrderType,
+                            'cashier': widget.sessionInfo.cashierName,
+                            'reference': ref,
+                            'order_type': _selectedOrderType,
+                            if (isDaynPayment) ...{
+                              'due_date': calculatedDueDate,
+                              'reminder_mode': reminderMode,
+                              'reminder_days': reminderDays,
+                            },
+                          },
+                          items: _cart.map((c) {
+                            return SaleItem(
+                              id: DateTime.now().millisecondsSinceEpoch + _cart.indexOf(c),
+                              saleId: 0,
+                              productId: null,
+                              productName: c.service.name,
+                              quantity: c.quantity,
+                              unitPrice: c.service.price,
+                              total: c.totalPrice,
+                            );
+                          }).toList(),
+                        );
+
+                        if (isDaynPayment) {
+                          final remaining = (_cartTotal - paidAmount).clamp(0.0, _cartTotal);
                           if (widget.onOrderConfirmed != null) {
                             widget.onOrderConfirmed!(_cart);
                           }
@@ -1625,10 +1876,16 @@ class _ServicePosPageState extends State<ServicePosPage> {
     required bool isDaynPayment,
     required bool isWalkIn,
     required ValueChanged<bool> onToggleWalkIn,
+    required bool isNewDebtor,
+    required ValueChanged<bool> onToggleNewDebtor,
+    required Customer? selectedExistingDebtor,
+    required ValueChanged<Customer?> onSelectDebtor,
     required TextEditingController nameCtrl,
     required TextEditingController phoneCtrl,
     required TextEditingController refCtrl,
   }) {
+    final existingDebtors = GashiRepository.instance.getCustomers(4);
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1664,10 +1921,87 @@ class _ServicePosPageState extends State<ServicePosPage> {
                       onChanged: onToggleWalkIn,
                     ),
                   ],
+                )
+              else
+                Row(
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Cusub'),
+                      selected: isNewDebtor,
+                      selectedColor: const Color(0xFFEF4444),
+                      backgroundColor: Colors.white,
+                      labelStyle: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: isNewDebtor ? Colors.white : const Color(0xFF4B5563),
+                      ),
+                      onSelected: (val) {
+                        onToggleNewDebtor(true);
+                        nameCtrl.clear();
+                        phoneCtrl.clear();
+                      },
+                      showCheckmark: false,
+                    ),
+                    const SizedBox(width: 4),
+                    ChoiceChip(
+                      label: const Text('Jira'),
+                      selected: !isNewDebtor,
+                      selectedColor: const Color(0xFFEF4444),
+                      backgroundColor: Colors.white,
+                      labelStyle: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: !isNewDebtor ? Colors.white : const Color(0xFF4B5563),
+                      ),
+                      onSelected: (val) {
+                        onToggleNewDebtor(false);
+                        if (existingDebtors.isNotEmpty) {
+                          final deb = selectedExistingDebtor ?? existingDebtors.first;
+                          onSelectDebtor(deb);
+                          nameCtrl.text = deb.name;
+                          phoneCtrl.text = deb.phone;
+                        }
+                      },
+                      showCheckmark: false,
+                    ),
+                  ],
                 ),
             ],
           ),
           const SizedBox(height: 10),
+          if (isDaynPayment && !isNewDebtor && existingDebtors.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<Customer>(
+                  value: selectedExistingDebtor ?? existingDebtors.first,
+                  isExpanded: true,
+                  items: existingDebtors.map((c) {
+                    return DropdownMenuItem<Customer>(
+                      value: c,
+                      child: Text(
+                        '${c.name} (${c.phone}) - Deynta: \$${c.currentCreditBalance.toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (c) {
+                    if (c != null) {
+                      onSelectDebtor(c);
+                      nameCtrl.text = c.name;
+                      phoneCtrl.text = c.phone;
+                    }
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           Row(
             children: [
               Expanded(
